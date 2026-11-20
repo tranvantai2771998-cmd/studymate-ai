@@ -1,0 +1,6 @@
+{
+  "name": "StudyMate AI — Trợ lý học tập cá nhân hóa",
+  "description": "StudyMate AI — Trợ lý học tập cá nhân hóa cho sinh viên Y khoa, Răng Hàm Mặt và Đại học: Tóm tắt bài giảng chuyên sâu, giải thích khái niệm đa sắc thái, trắc nghiệm lâm sàng, lộ trình lặp lại ngắt quãng và Pomodoro.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
