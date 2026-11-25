@@ -315,10 +315,9 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating NotebookLM Launcher Bubble (#nlm-bubble-btn) */}
+      {/* Floating Embedded Kho Drive & Gemini Notebook Bubble (#nlm-bubble-btn) */}
       <NotebookLMBubble
         preferences={preferences}
-        onUpdatePreferences={(newPrefs) => setPreferences(newPrefs)}
         onOpenInAppNotebook={() => {
           setLibraryInitialTab('notebook');
           setCurrentTab('library');

@@ -13,7 +13,7 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { UserPreferences, ExaminationDate, UserRole } from '../../types';
-import { savePreferences, DEFAULT_NOTEBOOKLM_URL } from '../../data/storage';
+import { savePreferences } from '../../data/storage';
 
 interface SettingsModuleProps {
   preferences: UserPreferences;
@@ -27,7 +27,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [userName, setUserName] = useState(preferences.userName);
   const [userRole, setUserRole] = useState<UserRole>(preferences.userRole);
   const [dailyGoalMinutes, setDailyGoalMinutes] = useState(preferences.dailyStudyGoalMinutes);
-  const [notebookLmUrl, setNotebookLmUrl] = useState(preferences.notebookLmUrl || DEFAULT_NOTEBOOKLM_URL);
   const [subjects, setSubjects] = useState<string[]>([...preferences.currentSubjects]);
   const [newSubjectInput, setNewSubjectInput] = useState('');
   const [examDates, setExamDates] = useState<ExaminationDate[]>([...preferences.examinationDates]);
@@ -82,7 +81,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
       dailyStudyGoalMinutes: Number(dailyGoalMinutes),
       currentSubjects: subjects,
       examinationDates: examDates,
-      notebookLmUrl: notebookLmUrl.trim() || DEFAULT_NOTEBOOKLM_URL,
     };
 
     savePreferences(updated);
@@ -176,19 +174,6 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
                 <option value={180}>180 phút (3 giờ / ngày - Ôn thi)</option>
                 <option value={240}>240 phút (4 giờ / ngày - Cấp tốc)</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                Liên kết Google NotebookLM (nút nổi #nlm-bubble-btn)
-              </label>
-              <input
-                type="url"
-                value={notebookLmUrl}
-                onChange={(e) => setNotebookLmUrl(e.target.value)}
-                placeholder={DEFAULT_NOTEBOOKLM_URL}
-                className="w-full text-xs rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
             </div>
           </div>
         </div>
