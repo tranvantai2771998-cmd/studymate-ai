@@ -106,25 +106,25 @@ Câu hỏi của bạn về: "${userText}" là một vấn đề rất đáng ch
 
   return (
     <>
-      {/* Nút bấm tròn nổi góc dưới bên phải - xếp cạnh nút NotebookLM */}
+      {/* Nút bấm nổi phía trên - góc trên bên phải (cạnh thanh công cụ Header) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-20 sm:right-24 z-50 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 text-white rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 group border-2 border-white/40 cursor-pointer"
+          className="fixed top-20 right-4 sm:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 text-white rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 group border border-white/30 cursor-pointer"
           aria-label="Mở Trợ lý AI Y khoa"
         >
           <div className="relative">
-            <Bot className="w-5 h-5 transition-transform group-hover:rotate-12" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full" />
+            <Bot className="w-4 h-4 transition-transform group-hover:rotate-12" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-400 rounded-full" />
           </div>
-          <span className="font-bold text-xs sm:text-sm tracking-wide">Trợ lý Y Khoa</span>
+          <span className="font-bold text-xs tracking-wide">Trợ lý Y Khoa</span>
         </button>
       )}
 
-      {/* Cửa sổ Chat Widget nổi */}
+      {/* Cửa sổ Chat Widget nổi - mở từ phía trên xuống */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[94vw] sm:w-[420px] h-[600px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-6 duration-200">
+        <div className="fixed top-16 right-4 sm:right-6 z-50 w-[94vw] sm:w-[420px] h-[580px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-6 duration-200">
           {/* Header */}
           <div className="px-4 py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-600 text-white flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2.5 min-w-0">
