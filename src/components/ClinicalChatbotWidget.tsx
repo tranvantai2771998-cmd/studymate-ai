@@ -1,22 +1,130 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, X, Send, GraduationCap, Sparkles, User, RefreshCw, Minimize2, BookOpen } from 'lucide-react';
+import {
+  GraduationCap,
+  Sparkles,
+  User,
+  RefreshCw,
+  Minimize2,
+  BookOpen,
+  Send,
+  HelpCircle,
+  Lightbulb,
+  CheckCircle2,
+  FileQuestion,
+  BookmarkPlus,
+  BrainCircuit,
+  Key
+} from 'lucide-react';
 
 interface ChatMessage {
   id: string;
   sender: 'ai' | 'user';
   text: string;
   time: string;
+  isStreaming?: boolean;
 }
+
+// BỘ DỮ LIỆU ĐÀO TẠO KIẾN THỨC CHUYÊN SÂU CỦA NGƯỜI THẦY Y KHOA & RĂNG HÀM MẶT
+const MEDICAL_KNOWLEDGE_BASE: { keywords: string[]; topic: string; lesson: string }[] = [
+  {
+    keywords: ['implant', 'tarnow', 'all-on', 'mào xương', 'khoảng sinh học'],
+    topic: 'Cấy Ghép Implant Nha Khoa & Sinh Học Mào Xương',
+    lesson: `📚 **Thầy hướng dẫn chuyên đề: Cấy ghép Nha khoa & Quy tắc Sinh học:**
+
+1. **Quy tắc Khoảng cách Sinh học Tarnow (Bắt buộc thuộc khi thi):**
+   - Khoảng cách giữa 2 implant kề nhau: **Tối thiểu $\\ge 3.0\\text{ mm}$**. Nếu đặt $< 3.0\\text{ mm}$, tiêu xương mào kề cận sẽ chồng lấn khiến mất nhú nướu (black triangle).
+   - Khoảng cách giữa implant và răng thật: **Tối thiểu $\\ge 1.5\\text{ mm}$** để không làm tổn thương dây chằng nha chu và mạch máu nuôi mào xương răng tự nhiên.
+2. **Nguyên tắc Tuyệt đối về Cơ sinh học (Golden Rule):**
+   - **CẤM NỐI CỨNG** giữa răng tự nhiên và implant trên cùng một cầu răng. Răng thật có dây chằng nha chu di động sinh lý ($25-100\\mu\\text{m}$), implant chỉ di động vi thể ($3-5\\mu\\text{m}$). Nối cứng sẽ gây hiện tượng lún răng thật, gãy ốc abutment hoặc tiêu xương quanh cổ implant.
+3. **Mốc Giải phẫu & Thần kinh:**
+   - Ống thần kinh răng dưới (IAN): Luôn giữ khoảng lùi an toàn mút chóp **$\\ge 2.0\\text{ mm}$** trên CBCT cắt lớp cross-sectional.
+   - Thần kinh cằm (Mental foramen) & Quai thần kinh phía trước (Anterior Loop): Giữ khoảng an toàn an toàn **$\\ge 4.0\\text{ mm}$**.
+
+💡 *Câu hỏi ôn tập cho các em:* Khi cấy implant tức thì vùng răng trước, nếu khoảng nhảy (*jumping distance*) $\\ge 2\\text{ mm}$, vì sao bắt buộc phải ghép xương GBR kết hợp màng collagen?`
+  },
+  {
+    keywords: ['nha chu', 'aap', 'efp', 'túi nha chu', 'cal', 'ppd', 'srp'],
+    topic: 'Phân loại Bệnh Nha chu Chuẩn Quốc tế (AAP/EFP 2017)',
+    lesson: `🩺 **Thầy hướng dẫn ôn tập: Phân loại Bệnh Nha chu (AAP/EFP 2017):**
+
+Khi thi và làm bệnh án lâm sàng, các em chia rõ 2 trục:
+
+1. **Phân chia Giai đoạn (Stage I - IV) — Đánh giá mức độ trầm trọng:**
+   - Dựa vào mất bám dính lâm sàng (CAL) tại vị trí nặng nhất:
+     - Stage I: CAL 1-2 mm | Stage II: CAL 3-4 mm | Stage III & IV: CAL $\\ge 5\\text{ mm}$.
+   - Khác biệt giữa Stage III và IV: Stage IV mất chức năng ăn nhai nặng nề, khớp cắn sang chấn, xô lệch răng và còn lại $<20$ răng (hoặc $<10$ cặp răng đối).
+2. **Phân chia Mức độ Tiến triển (Grade A, B, C) — Đánh giá tốc độ:**
+   - Grade A (Chậm): Tỷ lệ % tiêu xương / tuổi $< 0.25$, không hút thuốc, không tiểu đường.
+   - Grade B (Trung bình): Tỷ lệ tiêu xương / tuổi từ $0.25 - 1.0$, hút $<10$ điếu/ngày, HbA1c $<7.0\\%$.
+   - Grade C (Nhanh): Tỷ lệ tiêu xương / tuổi $> 1.0$, hút $\\ge 10$ điếu/ngày, HbA1c $\\ge 7.0\\%$.
+3. **Chỉ số PPD và BOP:**
+   - PPD $\\le 3\\text{ mm}$ không chảy máu = Nha chu khỏe mạnh.
+   - PPD $\\ge 4\\text{ mm}$ có BOP (+) = Viêm túi nha chu hoạt động, chỉ định lấy cao răng và xử lý mặt gốc răng (SRP).`
+  },
+  {
+    keywords: ['răng 8', 'răng khôn', 'nhổ răng', 'spix', 'gây tê', 'tai biến'],
+    topic: 'Phẫu thuật Nhổ Răng Khôn & Kỹ thuật Gây tê Vùng',
+    lesson: `📖 **Thầy hướng dẫn ôn tập: Nhổ Răng Khôn (R8) & Kỹ thuật Gây tê Spix:**
+
+1. **Phân loại Pell & Gregory & Winter (Câu hỏi thi lý thuyết thường gặp):**
+   - **Tương quan cành cao (Pell & Gregory):** Class I (đủ chỗ), Class II (thiếu 1 phần), Class III (nằm hoàn toàn trong cành lên).
+   - **Độ sâu so với mặt phẳng nhai:** Vị trí A (ngang mặt nhai răng 7), Vị trí B (ở giữa thân răng 7), Vị trí C (dưới đường cổ răng 7).
+   - **Trục nghiêng (Winter):** Nghiêng gần (mesioangular - dễ gặp nhất), thẳng, nghiêng xa, nằm ngang, nằm ngược.
+2. **Kỹ thuật Gây tê Gai Spix (Thần kinh huyệt răng dưới):**
+   - **Mốc định vị:** Mặt phẳng nhai răng hàm lớn dưới đưa lên 1 cm, giao điểm giữa bờ trước cơ cắn và nếp chân bướm hàm.
+   - **Quy tắc an toàn sống còn:** Đầu kim bắt buộc phải chạm bản xương trước khi bơm thuốc. Luôn kéo hút kiểm tra (Aspiration) để tránh tiêm nhầm vào động mạch/tĩnh mạch huyệt răng dưới gây ngộ độc thuốc tê toàn thân (LAST).
+3. **Ngừa biến chứng:** Không dùng bẩy với lực hướng vào bản xương trong vì mỏng, dễ làm đẩy chân răng tụt vào khoang dưới hàm hoặc thủng bản xương trong (*lingual plate perforation*).`
+  },
+  {
+    keywords: ['tủy', 'nội nha', 'viêm quanh chóp', 'naocl', 'gutta'],
+    topic: 'Bệnh học Tủy - Cuống & Kỹ thuật Nội Nha',
+    lesson: `🔬 **Thầy hướng dẫn ôn tập: Chẩn đoán & Điều trị Nội nha (Endodontics):**
+
+1. **Phân biệt Viêm tủy hồi phục vs Không hồi phục:**
+   - **Hồi phục:** Đau buốt khi có kích thích lạnh/ngọt, hết ngay sau vài giây khi ngừng kích thích. Thử điện (+) ở ngưỡng bình thường.
+   - **Không hồi phục:** Đau tự phát kéo dài thành cơn, đau giật theo mạch đập, đau dữ dội về đêm khi nằm xuống (do tăng áp lực nội tủy), kích thích nhiệt gây đau buốt kéo dài nhiều phút sau khi lấy tác nhân ra.
+2. **Viêm quanh chóp cấp:**
+   - Răng có cảm giác trồi cao, bệnh nhân cắn chạm răng đối diện đau chói, gõ dọc (+) rất mạnh.
+3. **Nguyên tắc tạo hình & Bơm rửa:**
+   - Dung dịch bơm rửa tiêu chuẩn vàng: **NaOCl $2.5\\% - 5.25\\%$** (hòa tan mô hữu cơ, diệt khuẩn sâu trong ống ngà), kết hợp hoạt hóa sóng âm/siêu âm.
+   - Dùng **EDTA $17\\%$** trong 1 phút cuối để loại bỏ lớp mùn ngà (*smear layer*) mở thông các ống ngà trước khi trám bít 3D bằng Gutta-percha.`
+  },
+  {
+    keywords: ['kháng sinh', 'beta-lactam', 'dược lý', 'amoxicillin', 'augmentin'],
+    topic: 'Dược lý Kháng sinh Nha khoa & Kiểm soát Nhiễm trùng',
+    lesson: `💊 **Thầy hướng dẫn Dược lý: Sử dụng Kháng sinh Hợp lý trong Răng Hàm Mặt:**
+
+1. **Cơ chế Kháng sinh nhóm Beta-lactam (Amoxicillin, Penicillin):**
+   - Diệt khuẩn phụ thuộc thời gian ($T > MIC$).
+   - Gắn kết với các enzym PBPs (Penicillin-Binding Proteins), ức chế tổng hợp cầu nối peptidoglycan làm yếu thành tế bào vi khuẩn khiến vi khuẩn tự vỡ do áp suất thẩm thấu.
+2. **Kháng thuốc & Phối hợp Kháng sinh:**
+   - Vi khuẩn kỵ khí tiết enzym Beta-lactamase phá hủy vòng beta-lactam $\\rightarrow$ Phối hợp Acid Clavulanic (**Augmentin**) để ức chế enzym này.
+   - Với nhiễm trùng răng miệng hỗn hợp ái khí + kỵ khí nặng: Phối hợp **Amoxicillin + Metronidazole** (Phác đồ kinh điển có hiệu quả diệt vi khuẩn kỵ khí gram âm rất mạnh).
+3. **Dị ứng Penicillin:**
+   - Thay thế bằng: Clindamycin hoặc Spiramycin + Metronidazole (Rodogyl), Azithromycin.`
+  }
+];
 
 export const ClinicalChatbotWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'quiz' | 'tips'>('chat');
+  const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('STUDYMATE_GEMINI_KEY') || '');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+  
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       sender: 'ai',
-      text: 'Chào các em! Thầy là Giảng viên AI hướng dẫn Y khoa & Răng Hàm Mặt. Thầy ở đây để đồng hành, giải thích cơ chế bệnh học, hệ thống hóa bài giảng, hướng dẫn phương pháp học và cùng các em ôn tập thi cử. Thầy không dùng để khám hay tư vấn điều trị thực tế trên người bệnh. Các em đang gặp khó khăn hay thắc mắc ở bài học nào, cứ hỏi thầy nhé!',
+      text: `Chào các em! Thầy là Giảng viên AI hướng dẫn Y khoa & Răng Hàm Mặt. 
+
+Thầy ở đây để đồng hành cùng các em:
+- Giải thích cơ chế bệnh học & sinh lý bệnh logic.
+- Hướng dẫn phương pháp nhớ sâu, mẹo ôn thi lý thuyết và lâm sàng.
+- Đố vui củng cố kiến thức trắc nghiệm Y khoa.
+
+Các em đang ôn tập đến bài học nào, cứ hỏi thầy nhé!`,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -33,108 +141,116 @@ export const ClinicalChatbotWidget: React.FC = () => {
     }
   }, [messages, isOpen]);
 
-  const generateAIResponse = (userText: string): string => {
-    const lower = userText.toLowerCase();
+  // HÀM TƯ DUY & GIẢNG DẠY SƯ PHẠM Y KHOA
+  const getTeacherResponse = async (questionText: string): Promise<string> => {
+    const lower = questionText.toLowerCase();
 
-    // Hướng dẫn Implant & Giải phẫu xương hàm
-    if (lower.includes('implant') || lower.includes('tarnow') || lower.includes('xương') || lower.includes('all-on')) {
-      return `📚 **Thầy hướng dẫn ôn tập chuyên đề Cấy ghép Nha khoa (Implantology):**
-
-Các em cần nắm vững 3 quy tắc cơ học và sinh học cơ bản sau để làm bài thi và hiểu bản chất:
-
-1. **Quy tắc khoảng cách sinh học Tarnow (Bắt buộc thuộc):**
-   - Khoảng cách giữa 2 implant kề nhau: Tối thiểu $\\ge 3.0\\text{ mm}$ (để nuôi dưỡng nhú nướu và giữ mào xương ổ giữa 2 trụ).
-   - Khoảng cách giữa implant và chân răng thật tự nhiên: Tối thiểu $\\ge 1.5\\text{ mm}$.
-2. **Cơ sở sinh học vùng mào xương:**
-   - Khi cấy implant, khoảng nhảy (*Jumping distance*) nếu $\\ge 2\\text{ mm}$ thì phải ghép xương có hướng dẫn (GBR).
-   - Tuyệt đối ghi nhớ nguyên lý: Không làm cầu răng nối cứng giữa răng tự nhiên (có dây chằng nha chu di động $25-100\\mu\\text{m}$) với implant (tích hợp xương cứng chắc, di động $<5\\mu\\text{m}$).
-3. **Mốc giải phẫu an toàn:**
-   - Ống thần kinh răng dưới (IAN): Luôn giữ khoảng cách an toàn mút chóp $\\ge 2.0\\text{ mm}$ trên phim CBCT.
-
-👉 *Câu hỏi tư duy cho các em:* Vì sao khi đặt implant quá sát nhau ($<3\\text{ mm}$) thì nhú nướu lại bị teo biến mất? Các em thử suy nghĩ xem nào!`;
+    // 1. Kiểm tra trong kho tri thức chuyên sâu y khoa đã được huấn luyện
+    for (const kb of MEDICAL_KNOWLEDGE_BASE) {
+      const match = kb.keywords.some((kw) => lower.includes(kw));
+      if (match) {
+        return kb.lesson;
+      }
     }
 
-    // Hướng dẫn Nha chu học
-    if (lower.includes('nha chu') || lower.includes('viêm nướu') || lower.includes('túi nha chu') || lower.includes('aap')) {
-      return `🩺 **Thầy hướng dẫn ôn tập Phân loại Bệnh Nha chu (Đồng thuận AAP/EFP 2017):**
+    // 2. Nếu người dùng cấu hình API Key riêng hoặc gọi server
+    if (userApiKey) {
+      try {
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${userApiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: 'user',
+                  parts: [
+                    {
+                      text: `Bạn là một NGƯỜI THẦY GIẢNG VIÊN Y KHOA & BÁC SĨ RĂNG HÀM MẶT giàu kinh nghiệm, tận tụy, ấm áp và sư phạm.
+MỤC TIÊU: Giảng giải, hướng dẫn sinh viên Y khoa học tập, ôn thi, hiểu cơ chế bệnh sinh, giải phẫu, dược lý, nha khoa (Implant, Nha chu, Nhổ răng, Nội nha, Kháng sinh).
+QUY TẮC BẮT BUỘC:
+- Xưng hô: "Thầy" - "Các em" / "Em".
+- KHÔNG dùng để tư vấn khám bệnh thực tế cho người bệnh. Luôn tập trung vào giải thích kiến thức, mẹo ghi nhớ cho sinh viên ôn thi.
+- Dùng Markdown rõ ràng, gạch đầu dòng, giải thích bản chất cơ chế khoa học.
+- Cuối câu luôn đặt 1 câu hỏi gợi mở tư duy để sinh viên tự suy ngẫm.
 
-Khi thi lâm sàng và lý thuyết, các em phải phân biệt rạch ròi giữa **Giai đoạn (Stage)** và **Mức độ tiến triển (Grade)**:
-
-1. **Xác định Stage (I, II, III, IV) - Đánh giá độ trầm trọng:**
-   - Dựa vào: Mất bám dính lâm sàng (CAL) tại vị trí nặng nhất, mức độ tiêu xương trên X-quang, và số lượng răng đã mất do nha chu.
-2. **Xác định Grade (A, B, C) - Đánh giá tốc độ tiến triển:**
-   - Dựa vào: Tỷ lệ % tiêu xương / tuổi của bệnh nhân, kết hợp yếu tố nguy cơ (Hút thuốc lá, Đái tháo đường HbA1c).
-3. **Chỉ số lâm sàng cốt lõi:**
-   - PPD (Độ sâu túi) $\\le 3\\text{ mm}$ là bình thường; $\\ge 4\\text{ mm}$ kèm BOP (+) là túi nha chu viêm hoạt động.
-
-👉 *Mẹo ôn bài:* Nhớ nguyên tắc điều trị bước 1 luôn là kiểm soát mảng bám vi khuẩn và cạo vôi, xử lý mặt gốc răng (SRP) trước khi nghĩ đến phẫu thuật vạt!`;
+Câu hỏi của sinh viên: "${questionText}"`
+                    }
+                  ]
+                }
+              ]
+            })
+          }
+        );
+        const data = await response.json();
+        const geminiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (geminiReply) return geminiReply;
+      } catch (e) {
+        console.error('Lỗi gọi Gemini trực tiếp:', e);
+      }
     }
 
-    // Hướng dẫn Nhổ răng & Phẫu thuật miệng
-    if (lower.includes('nhổ răng') || lower.includes('răng 8') || lower.includes('răng khôn') || lower.includes('spix')) {
-      return `📖 **Thầy hướng dẫn giải phẫu & kỹ năng Nhổ Răng Khôn (Răng 8):**
+    // 3. Khung phân tích sư phạm tổng quát nếu câu hỏi nằm ngoài các chủ đề trên
+    return `👨‍🏫 **Thầy hướng dẫn phương pháp học tập:**
 
-Các em học phần Phẫu thuật miệng cần ghi nhớ cấu trúc bài giảng sau:
+Câu hỏi của em về: **"${questionText}"** là một câu hỏi rất hay trong quá trình học tập.
 
-1. **Phân loại Pell & Gregory & Winter:**
-   - Đánh giá không gian giữa bờ trước cành lên và mặt xa răng 7 (Lớp I, II, III).
-   - Đánh giá độ sâu của răng 8 so với mặt phẳng nhai răng 7 (Vị trí A, B, C).
-   - Đánh giá trục nghiêng: Thẳng, gần, xa, ngang, nghịch.
-2. **Kỹ thuật gây tê Gai Spix (Thần kinh huyệt răng dưới):**
-   - Mốc: Mặt phẳng nhai răng cối lớn dưới đưa lên 1cm, giữa nếp chân bướm hàm và bờ trước cơ cắn.
-   - Thao tác: Kim chạm xương mới bơm thuốc tê, luôn hút thử để tránh bơm vào mạch máu gây ngộ độc thuốc tê (LAST).
-3. **Mục tiêu học tập:** Giảm thiểu sang chấn, bảo tồn vách xương ổ và tôn trọng mô mềm xung quanh.`;
-    }
+Để nắm chắc và trả lời tốt phần này khi thi, thầy khuyên em phân tích theo 4 bước logic của Bác sĩ:
+1. **Bản chất giải phẫu & sinh lý bình thường:** Cấu trúc này bình thường có đặc điểm gì?
+2. **Cơ chế bệnh sinh (Pathogenesis):** Tác nhân gây tổn thương phá hủy tế bào/mô ra sao?
+3. **Triệu chứng & Cận lâm sàng tương ứng:** Vì sao trên lâm sàng bệnh nhân có dấu hiệu này, và trên X-quang/Xét nghiệm thấy hình ảnh gì?
+4. **Hướng xử trí dựa trên y học chứng cứ:** Phác đồ điều trị được khuyến cáo trong sách giáo khoa là gì?
 
-    // Mặc định câu trả lời mang phong cách Thầy giáo y khoa
-    return `👨‍🏫 **Thầy hướng dẫn học tập:**
-
-Câu hỏi của em về chủ đề: **"${userText}"** là một phần kiến thức rất quan trọng trong chương trình học.
-
-Để học tốt và nhớ lâu nội dung này, thầy khuyên các em nên đi theo trình tự logic y khoa:
-1. **Ôn lại giải phẫu & sinh lý học:** Nắm vững cấu trúc bình thường trước khi học bệnh học.
-2. **Hiểu rõ cơ chế sinh bệnh (Pathogenesis):** Hiểu vì sao có triệu chứng đó thay vì học vẹt.
-3. **Liên hệ cận lâm sàng & xét nghiệm:** Hình ảnh học (X-quang, CBCT) và xét nghiệm phản ánh điều gì?
-4. **Hệ thống hóa vào Flashcard:** Tự ghi lại 3-5 ý cốt lõi để ôn tập Spaced Repetition trên StudyMate.
-
-Các em muốn thầy giảng giải kỹ hơn về cơ chế, định nghĩa hay hướng dẫn cách giải quyết tình huống bài tập nào trong phần này?`;
+👉 Em có muốn thầy làm rõ một khía cạnh cụ thể nào trong bài học này không?`;
   };
 
-  const handleSend = () => {
-    const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
+  const handleSend = async (customText?: string) => {
+    const textToSend = (customText || input).trim();
+    if (!textToSend || isLoading) return;
 
     const userMsg: ChatMessage = {
       id: Date.now().toString(),
       sender: 'user',
-      text: trimmed,
+      text: textToSend,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    if (!customText) setInput('');
     setIsLoading(true);
 
-    setTimeout(() => {
-      const replyText = generateAIResponse(trimmed);
+    try {
+      const reply = await getTeacherResponse(textToSend);
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: replyText,
+        text: reply,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, aiMsg]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          sender: 'ai',
+          text: 'Thầy đang rà soát lại tài liệu giảng dạy, em chờ thầy một chút nhé!',
+          time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+    } finally {
       setIsLoading(false);
-    }, 500);
+    }
   };
 
   return (
     <>
-      {/* Nút bấm nổi phía trên - góc trên bên phải (cạnh thanh Header) */}
+      {/* Nút bấm nổi phía trên - góc trên bên phải (cạnh thanh công cụ Header) */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed top-20 right-4 sm:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 text-white rounded-full shadow-xl hover:scale-105 active:scale-95 transition-all duration-200 group border border-white/30 cursor-pointer"
+          className="fixed top-20 right-4 sm:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 bg-gradient-to-r from-blue-700 via-indigo-600 to-teal-600 text-white rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-200 group border border-white/30 cursor-pointer"
           aria-label="Mở Giảng viên AI Y khoa"
         >
           <div className="relative">
@@ -148,25 +264,32 @@ Các em muốn thầy giảng giải kỹ hơn về cơ chế, định nghĩa ha
 
       {/* Cửa sổ Chat Widget nổi - mở từ phía trên xuống */}
       {isOpen && (
-        <div className="fixed top-16 right-4 sm:right-6 z-50 w-[94vw] sm:w-[420px] h-[580px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-6 duration-200">
+        <div className="fixed top-16 right-4 sm:right-6 z-50 w-[94vw] sm:w-[440px] h-[600px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-6 duration-200">
           {/* Header */}
-          <div className="px-4 py-3.5 bg-gradient-to-r from-blue-700 via-indigo-600 to-teal-600 text-white flex items-center justify-between shrink-0 shadow-sm">
+          <div className="px-4 py-3 bg-gradient-to-r from-blue-700 via-indigo-600 to-teal-600 text-white flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center shrink-0">
                 <GraduationCap className="w-4 h-4 text-white" />
               </div>
               <div className="min-w-0">
                 <h3 className="font-bold text-sm leading-tight truncate flex items-center gap-1.5">
-                  Giảng Viên AI — Cố Vấn Học Tập
+                  Thầy Giáo AI — Cố Vấn Học Tập
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 </h3>
                 <p className="text-[11px] text-blue-100 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                  Đồng hành học tập & ôn thi y khoa
+                  Đồng hành cùng sinh viên ôn thi Y - Nha khoa
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1 text-white/80">
+              <button
+                onClick={() => setShowKeyInput(!showKeyInput)}
+                title="Cấu hình Gemini API Key riêng (tùy chọn)"
+                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <Key className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={() => setMessages([messages[0]])}
                 title="Làm mới cuộc trò chuyện"
@@ -184,47 +307,128 @@ Các em muốn thầy giảng giải kỹ hơn về cơ chế, định nghĩa ha
             </div>
           </div>
 
-          {/* Lời nhắc định hướng học tập */}
+          {/* Ô nhập API Key riêng nếu muốn mở rộng trí tuệ không giới hạn */}
+          {showKeyInput && (
+            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/60 border-b border-indigo-200 dark:border-indigo-900 text-xs flex items-center gap-2">
+              <Key className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <input
+                type="password"
+                placeholder="Nhập Gemini API Key của bạn (nếu có)..."
+                value={userApiKey}
+                onChange={(e) => {
+                  setUserApiKey(e.target.value);
+                  localStorage.setItem('STUDYMATE_GEMINI_KEY', e.target.value);
+                }}
+                className="flex-1 px-2 py-1 bg-white dark:bg-slate-800 rounded border border-indigo-300 dark:border-indigo-700 text-xs text-slate-800 dark:text-slate-100 outline-none"
+              />
+              <button
+                onClick={() => setShowKeyInput(false)}
+                className="px-2 py-1 bg-indigo-600 text-white rounded text-[11px] font-medium"
+              >
+                Lưu
+              </button>
+            </div>
+          )}
+
+          {/* Banner định hướng học tập */}
           <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200/60 dark:border-amber-900/40 flex items-center gap-1.5 shrink-0 text-[10px] text-amber-800 dark:text-amber-200">
             <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span>Mục đích học tập, giải thích bài giảng & ôn thi. Không dùng chẩn đoán/kê đơn bệnh nhân.</span>
+            <span>Mục đích học tập, giải thích bài giảng & ôn thi. Không dùng khám chữa bệnh nhân.</span>
           </div>
 
-          {/* Gợi ý chủ đề ôn thi */}
-          <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-700/60 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 text-[11px]">
-            <span className="text-slate-500 shrink-0 font-medium">Ôn tập:</span>
+          {/* Tab chuyển đổi tính năng: Hỏi đáp / Đố vui / Mẹo thi */}
+          <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs shrink-0 font-medium">
             <button
-              onClick={() => {
-                setInput('Thầy giải thích giúp em quy tắc Tarnow và khoảng cách an toàn trong Implant?');
-              }}
-              className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 hover:border-blue-500 shrink-0 transition-colors"
+              onClick={() => setActiveTab('chat')}
+              className={`flex-1 py-2 text-center border-b-2 transition-colors ${
+                activeTab === 'chat'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-850'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
             >
-              Implant & Tarnow
+              💬 Hỏi Đáp Bài Giảng
             </button>
             <button
-              onClick={() => {
-                setInput('Thầy hướng dẫn cách nhớ nhanh phân độ Nha chu theo AAP/EFP 2017?');
-              }}
-              className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 hover:border-blue-500 shrink-0 transition-colors"
+              onClick={() => setActiveTab('quiz')}
+              className={`flex-1 py-2 text-center border-b-2 transition-colors ${
+                activeTab === 'quiz'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-850'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
             >
-              Nha chu AAP/EFP
+              🎯 Thầy Đố Nhanh
             </button>
             <button
-              onClick={() => {
-                setInput('Mốc giải phẫu và biến chứng khi gây tê Spix là gì thưa thầy?');
-              }}
-              className="px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md border border-slate-200 dark:border-slate-700 hover:border-blue-500 shrink-0 transition-colors"
+              onClick={() => setActiveTab('tips')}
+              className={`flex-1 py-2 text-center border-b-2 transition-colors ${
+                activeTab === 'tips'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-850'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
             >
-              Gây tê Spix
+              💡 Mẹo Ôn Thi
             </button>
           </div>
 
-          {/* Vùng tin nhắn */}
-          <div className="flex-1 p-3.5 overflow-y-auto space-y-3 bg-slate-50/50 dark:bg-slate-950/30 text-xs sm:text-[13px]">
+          {/* Nội dung theo Tab */}
+          {activeTab === 'quiz' && (
+            <div className="p-3 bg-blue-50/50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-xs space-y-2 shrink-0">
+              <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <FileQuestion className="w-3.5 h-3.5 text-blue-600" />
+                Chọn chủ đề để Thầy ra câu hỏi trắc nghiệm đố em:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => handleSend('Thầy ơi, thầy đố em 1 câu trắc nghiệm chuyên sâu về Implant nha khoa đi ạ!')}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 text-[11px] text-slate-700 dark:text-slate-300"
+                >
+                  🎯 Đố về Implant
+                </button>
+                <button
+                  onClick={() => handleSend('Thầy đố em 1 câu hỏi phân độ Nha chu theo AAP/EFP 2017 nhé thầy!')}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 text-[11px] text-slate-700 dark:text-slate-300"
+                >
+                  🎯 Đố về Nha chu
+                </button>
+                <button
+                  onClick={() => handleSend('Thầy đố em 1 câu về giải phẫu gây tê Spix và răng khôn ạ!')}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-blue-500 text-[11px] text-slate-700 dark:text-slate-300"
+                >
+                  🎯 Đố về Gây tê Spix
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'tips' && (
+            <div className="p-3 bg-amber-50/50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 text-xs space-y-2 shrink-0">
+              <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                Mẹo học nhanh Y khoa từ Thầy:
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => handleSend('Thầy hướng dẫn mẹo nhớ quy tắc Tarnow và khoảng sinh học trong đầu?')}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-amber-500 text-[11px] text-slate-700 dark:text-slate-300"
+                >
+                  💡 Mẹo nhớ Tarnow 3mm/1.5mm
+                </button>
+                <button
+                  onClick={() => handleSend('Thầy chia sẻ mẹo phân biệt nhanh Stage và Grade nha chu khi làm bài thi?')}
+                  className="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:border-amber-500 text-[11px] text-slate-700 dark:text-slate-300"
+                >
+                  💡 Mẹo Stage vs Grade
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Vùng hội thoại */}
+          <div className="flex-1 p-3.5 overflow-y-auto space-y-3 bg-slate-50/50 dark:bg-slate-950/40 text-xs sm:text-[13px]">
             {messages.map((m) => (
               <div
                 key={m.id}
-                className={`flex gap-2.5 max-w-[88%] ${
+                className={`flex gap-2.5 max-w-[90%] ${
                   m.sender === 'user' ? 'ml-auto flex-row-reverse' : ''
                 }`}
               >
@@ -239,13 +443,13 @@ Các em muốn thầy giảng giải kỹ hơn về cơ chế, định nghĩa ha
                   className={`p-3 rounded-2xl leading-relaxed whitespace-pre-wrap break-words ${
                     m.sender === 'user'
                       ? 'bg-blue-600 text-white rounded-br-xs shadow-sm'
-                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700/80 rounded-bl-xs shadow-xs'
+                      : 'bg-white dark:bg-slate-850 text-slate-800 dark:text-slate-100 border border-slate-200/80 dark:border-slate-700/80 rounded-bl-xs shadow-xs'
                   }`}
                 >
                   {m.text}
                   <div
                     className={`text-[9px] mt-1 text-right ${
-                      m.sender === 'user' ? 'text-blue-100' : 'text-slate-400'
+                      m.sender === 'user' ? 'text-blue-100' : 'text-slate-400 dark:text-slate-400'
                     }`}
                   >
                     {m.time}
@@ -258,11 +462,11 @@ Các em muốn thầy giảng giải kỹ hơn về cơ chế, định nghĩa ha
                 <div className="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center">
                   <GraduationCap className="w-3.5 h-3.5" />
                 </div>
-                <div className="px-3 py-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
+                <div className="px-3 py-2 bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce [animation-delay:0.4s]" />
-                  <span>Thầy đang soạn lời giảng giải...</span>
+                  <span>Thầy đang suy ngẫm lời giải thích...</span>
                 </div>
               </div>
             )}
@@ -278,11 +482,11 @@ Các em muốn thầy giảng giải kỹ hơn về cơ chế, định nghĩa ha
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleSend();
               }}
-              placeholder="Hỏi thầy về cơ chế, bài giảng, mẹo ôn thi..."
-              className="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-blue-500 dark:focus:border-blue-500 rounded-xl outline-none text-xs sm:text-sm text-slate-800 dark:text-slate-200 transition-colors"
+              placeholder="Hỏi thầy về cơ chế, giải phẫu, mẹo ôn thi..."
+              className="flex-1 px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-transparent focus:border-blue-500 dark:focus:border-blue-500 rounded-xl outline-none text-xs sm:text-sm text-slate-800 dark:text-slate-100 transition-colors"
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || isLoading}
               className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl transition-all duration-150 active:scale-95 shrink-0 cursor-pointer"
               aria-label="Gửi câu hỏi"
