@@ -1,24 +1,60 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Đảm bảo toàn bộ ô input, textarea, select khi ở chế độ tối (dark mode) luôn có nền tối và chữ sáng rõ nét */
-html.dark input,
-html.dark textarea,
-html.dark select,
+/* ==========================================================================
+   DARK MODE CONTRAST FIX - Bắt buộc áp dụng toàn bộ giao diện tối
+   ========================================================================== */
+html.dark,
+.dark {
+  color-scheme: dark;
+}
+
+/* 1. Khắc phục tất cả các ô input, textarea, select trong Dark Mode */
 .dark input,
 .dark textarea,
-.dark select {
+.dark select,
+html.dark input,
+html.dark textarea,
+html.dark select {
   background-color: #1e293b !important;
   color: #ffffff !important;
   border-color: #334155 !important;
 }
 
-html.dark input::placeholder,
-html.dark textarea::placeholder,
 .dark input::placeholder,
-.dark textarea::placeholder {
+.dark textarea::placeholder,
+html.dark input::placeholder,
+html.dark textarea::placeholder {
   color: #94a3b8 !important;
   opacity: 1 !important;
+}
+
+/* 2. Khắc phục các thẻ kết quả tóm tắt, khối ghi chú, thẻ luận điểm trong Dark Mode */
+.dark .bg-slate-50,
+.dark .bg-white,
+html.dark .bg-slate-50,
+html.dark .bg-white {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+/* 3. Khắc phục toàn bộ màu chữ mờ/nhạt trong Dark Mode thành trắng sáng rõ nét */
+.dark .text-slate-700,
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-800,
+.dark .text-slate-900,
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-slate-800,
+html.dark .text-slate-900 {
+  color: #f1f5f9 !important;
+}
+
+.dark p,
+html.dark p {
+  color: #f1f5f9 !important;
 }
 
 @layer base {
