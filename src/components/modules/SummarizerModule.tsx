@@ -310,7 +310,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Ví dụ: Hội chứng Vành Cấp & STEMI"
-                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -321,7 +321,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
               <select
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
               >
                 {preferences.currentSubjects.map((sub) => (
                   <option key={sub} value={sub}>
@@ -341,7 +341,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 placeholder="vd: Cấp cứu, Tim mạch, Thuốc"
-                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
               />
             </div>
           </div>
@@ -386,7 +386,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
                   ? 'Bạn có thể ghi chú thêm yêu cầu trọng tâm (không bắt buộc) vì hệ thống sẽ đọc trực tiếp tệp PDF đính kèm...'
                   : 'Dán toàn bộ ghi chú bài giảng, tài liệu nghiên cứu, ca lâm sàng hoặc văn bản slide học tập...'
               }
-              className="w-full p-4 text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 leading-relaxed font-sans"
+              className="w-full p-4 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 leading-relaxed font-sans"
             />
 
             {/* Document File Upload */}
@@ -549,7 +549,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
               <h2 className="font-serif-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white">
                 {summaryData.title}
               </h2>
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-sans">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-sans">
                 {summaryData.overview}
               </div>
             </div>
@@ -564,7 +564,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
                 {summaryData.keyPoints.map((pt, i) => (
                   <div
                     key={i}
-                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-1"
+                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-1"
                   >
                     <span className="font-mono text-xs text-slate-400 font-bold">0{i + 1}.</span>
                     <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{pt}</p>
@@ -650,7 +650,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {summaryData.glossary.map((g, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/40">
+                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                           <td className="py-3 px-4 font-mono font-semibold text-slate-900 dark:text-white">
                             {g.term}
                           </td>
@@ -691,3 +691,4 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
     </div>
   );
 };
+

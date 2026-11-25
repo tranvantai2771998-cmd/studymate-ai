@@ -202,7 +202,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 placeholder="Ví dụ: Cơ chế gây tê Spix, Sốc phản vệ, Vòng Beta-lactam, Điện tâm đồ STEMI..."
-                className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -213,7 +213,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
               <select
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
-                className="w-full px-3 py-2.5 text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
               >
                 {preferences.currentSubjects.map((sub) => (
                   <option key={sub} value={sub}>
@@ -260,7 +260,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
                   className={`p-2.5 rounded-xl border text-left transition-all ${
                     mode === m.id
                       ? 'border-blue-600 bg-blue-50/70 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 ring-1 ring-blue-500'
-                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
+                      : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100'
                   }`}
                 >
                   <div className="font-semibold">{m.label}</div>
@@ -362,7 +362,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
               <h2 className="font-serif-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white">
                 {conceptData.topic}
               </h2>
-              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans font-medium">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 text-xs sm:text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-sans font-medium">
                 {conceptData.coreDefinition}
               </div>
             </div>
@@ -381,7 +381,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
             {(conceptData.mechanism || conceptData.clinicalOrRealWorld) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {conceptData.mechanism && (
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
                     <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
                       <Layers className="w-4 h-4 text-blue-500" />
                       Cơ chế hoạt động / Sinh lý bệnh
@@ -420,7 +420,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {conceptData.comparisonTable.map((row, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/40">
+                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                           <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">
                             {row.feature}
                           </td>
@@ -444,7 +444,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
                 {conceptData.keyTakeaways.map((t, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2.5"
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 flex items-start gap-2.5"
                   >
                     <span className="font-mono font-bold text-slate-400">0{idx + 1}.</span>
                     <p className="leading-relaxed">{t}</p>
@@ -482,7 +482,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
               </h3>
 
               {followUpHistory.length > 0 && (
-                <div className="space-y-3 max-h-80 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <div className="space-y-3 max-h-80 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
                   {followUpHistory.map((msg, i) => (
                     <div
                       key={i}
@@ -507,7 +507,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
                   value={followUpQuestion}
                   onChange={(e) => setFollowUpQuestion(e.target.value)}
                   placeholder="Hỏi sâu hơn: 'Tại sao lại có ngoại lệ?', 'Cho tôi một ví dụ cụ thể hơn'..."
-                  className="flex-1 px-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="flex-1 px-4 py-2.5 text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
                 <button
                   type="submit"
@@ -525,3 +525,4 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
     </div>
   );
 };
+

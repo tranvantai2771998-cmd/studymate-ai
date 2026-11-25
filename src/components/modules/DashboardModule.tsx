@@ -320,7 +320,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
                   key={task.id}
                   className={`p-3.5 rounded-xl border text-xs flex items-start gap-3 transition-colors ${
                     task.status === 'completed'
-                      ? 'bg-slate-50 dark:bg-slate-850/50 border-slate-200 dark:border-slate-800 text-slate-400'
+                      ? 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800 text-slate-400'
                       : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
                   }`}
                 >
@@ -415,7 +415,7 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
                 return (
                   <div
                     key={exam.id}
-                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
+                    className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs"
                   >
                     <div className="space-y-0.5 min-w-0 pr-2">
                       <div className="font-semibold text-slate-900 dark:text-white truncate">
@@ -436,3 +436,4 @@ export const DashboardModule: React.FC<DashboardModuleProps> = ({
     </div>
   );
 };
+

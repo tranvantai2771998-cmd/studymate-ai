@@ -2,17 +2,23 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* Đảm bảo toàn bộ ô input, textarea, select khi ở chế độ tối (dark mode) luôn có nền tối và chữ sáng rõ nét */
+html.dark input,
+html.dark textarea,
+html.dark select,
 .dark input,
 .dark textarea,
 .dark select {
   background-color: #1e293b !important;
-  color: #f8fafc !important;
+  color: #ffffff !important;
   border-color: #334155 !important;
 }
 
+html.dark input::placeholder,
+html.dark textarea::placeholder,
 .dark input::placeholder,
 .dark textarea::placeholder {
   color: #94a3b8 !important;
+  opacity: 1 !important;
 }
 
 @layer base {
