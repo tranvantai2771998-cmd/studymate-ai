@@ -42,6 +42,7 @@ import { HistoryModule } from './components/modules/HistoryModule';
 import { AnalyticsModule } from './components/modules/AnalyticsModule';
 import { SettingsModule } from './components/modules/SettingsModule';
 import { NotebookLMBubble } from './components/NotebookLMBubble';
+import { ClinicalChatbotWidget } from './components/ClinicalChatbotWidget';
 import { playChimeSound } from './utils/sound';
 
 export default function App() {
@@ -323,6 +324,9 @@ export default function App() {
           setCurrentTab('library');
         }}
       />
+
+      {/* Floating Clinical & Dental AI Chatbot Widget */}
+      <ClinicalChatbotWidget />
     </div>
   );
 }
