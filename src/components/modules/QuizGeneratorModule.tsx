@@ -40,6 +40,7 @@ import {
   logActivity,
 } from '../../data/storage';
 import { exportQuizToMarkdown, exportContentAsFile, printContent } from '../../utils/exporter';
+import { AiFallbackWarning, MedicalDisclaimer } from '../MedicalDisclaimer';
 
 interface QuizGeneratorModuleProps {
   preferences: UserPreferences;
@@ -79,6 +80,7 @@ export const QuizGeneratorModule: React.FC<QuizGeneratorModuleProps> = ({
   // UI state
   const [isLoading, setIsLoading] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [savedQuizzesList, setSavedQuizzesList] = useState<Quiz[]>([]);
 
   useEffect(() => {
@@ -122,38 +124,43 @@ export const QuizGeneratorModule: React.FC<QuizGeneratorModuleProps> = ({
     }
 
     setIsLoading(true);
+    setFallbackMessage(null);
     try {
       const response = await fetch('/api/gemini/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: topic.trim() || subject,
+          content: sourceContent.trim() || topic.trim() || subject,
           subject,
-          content: sourceContent.trim(),
           difficulty,
           count: questionCount,
-          type: questionType,
+          questionType,
         }),
       });
 
       const data = await response.json();
-      if (!data.success || !data.quiz) {
-        throw new Error(data.error || 'Không thể tạo quiz');
+      if (!response.ok || data?.error) {
+        throw new Error(data?.message || 'Không thể tạo quiz');
       }
 
-      const generatedQuestions: QuizQuestion[] = data.quiz.questions.map((q: any, i: number) => ({
-        id: i + 1,
+      const questionsRaw = Array.isArray(data?.questions) ? data.questions : data?.quiz?.questions;
+      if (!Array.isArray(questionsRaw) || questionsRaw.length === 0) {
+        throw new Error('AI không trả về câu hỏi hợp lệ.');
+      }
+
+      const generatedQuestions: QuizQuestion[] = questionsRaw.map((q: any, i: number) => ({
+        id: Number(q?.id) || i + 1,
         type: questionType,
-        question: q.question,
-        options: q.options || [],
-        correctAnswerIndex: typeof q.correctAnswerIndex === 'number' ? q.correctAnswerIndex : 0,
-        explanation: q.explanation || 'Không có giải thích chi tiết.',
-        optionExplanations: q.optionExplanations || [],
+        question: String(q?.question || `Câu hỏi ${i + 1}`),
+        options: Array.isArray(q?.options) ? q.options.map((o: any) => String(o)) : [],
+        correctAnswerIndex: typeof q?.correctAnswerIndex === 'number' ? q.correctAnswerIndex : 0,
+        explanation: String(q?.explanation || 'Không có giải thích chi tiết.'),
+        optionExplanations: Array.isArray(q?.optionExplanations) ? q.optionExplanations.map((o: any) => String(o)) : [],
       }));
 
       const newQuiz: Quiz = {
         id: `quiz-${Date.now()}`,
-        title: data.quiz.title || `Trắc nghiệm: ${topic.trim() || subject}`,
+        title: String(data?.quizTitle || data?.quiz?.title || `Trắc nghiệm: ${topic.trim() || subject}`),
         subject,
         difficulty,
         questionType,
@@ -162,7 +169,6 @@ export const QuizGeneratorModule: React.FC<QuizGeneratorModuleProps> = ({
         createdAt: Date.now(),
       };
 
-      // Save to storage
       const existing = loadQuizzes();
       saveQuizzes([newQuiz, ...existing]);
       setSavedQuizzesList([newQuiz, ...existing]);
@@ -174,12 +180,16 @@ export const QuizGeneratorModule: React.FC<QuizGeneratorModuleProps> = ({
         newQuiz.id
       );
 
-      // Start quiz
       startQuizSession(newQuiz);
-      showToast('Đã tạo thành công bộ câu hỏi!');
+      if (data?._fallback) {
+        setFallbackMessage(data._fallbackMessage || 'AI đang dùng dữ liệu dự phòng. Hãy kiểm chứng trước khi ôn tập.');
+        showToast('Đã tạo quiz ở chế độ dự phòng.');
+      } else {
+        showToast('Đã tạo thành công bộ câu hỏi!');
+      }
     } catch (err: any) {
       console.error(err);
-      showToast('Đang dùng chế độ câu hỏi dự phòng từ thư viện y khoa...');
+      showToast(err?.message || 'Không thể tạo quiz. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
     }
@@ -330,6 +340,8 @@ export const QuizGeneratorModule: React.FC<QuizGeneratorModuleProps> = ({
           {notification}
         </div>
       )}
+      {fallbackMessage && <AiFallbackWarning message={fallbackMessage} />}
+      <MedicalDisclaimer compact />
 
       {/* Main View: In Quiz vs Setup */}
       {activeQuiz ? (

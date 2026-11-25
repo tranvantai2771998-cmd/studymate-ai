@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ConceptNote, ExplanationMode, UserPreferences } from '../../types';
 import { formatConceptToMarkdown, downloadFile, triggerPrint } from '../../utils/exporter';
+import { AiFallbackWarning, MedicalDisclaimer } from '../MedicalDisclaimer';
 
 interface ConceptExplainerModuleProps {
   currentConcept: ConceptNote | null;
@@ -50,6 +51,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [conceptData, setConceptData] = useState<ConceptNote | null>(currentConcept);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Follow-up question state
@@ -66,6 +68,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
 
     setIsLoading(true);
     setErrorMessage(null);
+    setFallbackMessage(null);
     setFollowUpHistory([]);
 
     try {
@@ -105,6 +108,7 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
 
       setConceptData(newConcept);
       onSaveConcept(newConcept);
+      if (data?._fallback) setFallbackMessage(data._fallbackMessage || 'AI đang dùng dữ liệu dự phòng. Vui lòng kiểm chứng.');
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Lỗi khi gọi AI giải thích.');
@@ -293,12 +297,14 @@ export const ConceptExplainerModule: React.FC<ConceptExplainerModuleProps> = ({
           {errorMessage && (
             <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">{errorMessage}</p>
           )}
+          {fallbackMessage && <AiFallbackWarning message={fallbackMessage} />}
         </form>
       </div>
 
       {/* Concept Output View */}
       {conceptData && (
         <div className="space-y-6">
+          <MedicalDisclaimer compact />
           {/* Action Row */}
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 print:hidden">
             <span className="text-xs font-mono text-slate-400">

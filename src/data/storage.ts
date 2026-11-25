@@ -506,9 +506,21 @@ export function calculateDashboardStats() {
   };
 }
 
+const ALL_STUDYMATE_KEYS = [
+  PREFS_KEY, MATERIALS_KEY, SUMMARIES_KEY, CONCEPTS_KEY, QUIZZES_KEY,
+  ATTEMPTS_KEY, TASKS_KEY, SESSIONS_KEY, FLASHCARDS_KEY, HISTORY_KEY,
+];
+
 export function exportFullApplicationBackup(): string {
+  const rawKeys: Record<string, unknown> = {};
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('studymate_')) {
+      rawKeys[key] = safeGet<unknown>(key, null);
+    }
+  }
   const data = {
-    version: '1.0',
+    version: '1.1',
     exportedAt: new Date().toISOString(),
     preferences: loadPreferences(),
     materials: loadMaterials(),
@@ -520,6 +532,7 @@ export function exportFullApplicationBackup(): string {
     sessions: loadSessions(),
     flashcards: loadFlashcards(),
     history: loadHistory(),
+    rawKeys,
   };
   return JSON.stringify(data, null, 2);
 }
@@ -528,6 +541,12 @@ export function importApplicationBackup(jsonString: string): boolean {
   try {
     const data = JSON.parse(jsonString);
     if (!data || typeof data !== 'object') return false;
+
+    if (data.rawKeys && typeof data.rawKeys === 'object') {
+      for (const [key, value] of Object.entries(data.rawKeys as Record<string, unknown>)) {
+        if (key.startsWith('studymate_')) safeSet(key, value);
+      }
+    }
 
     if (data.preferences) savePreferences(data.preferences);
     if (Array.isArray(data.materials)) saveMaterials(data.materials);
@@ -545,4 +564,13 @@ export function importApplicationBackup(jsonString: string): boolean {
     console.error('Failed to parse backup JSON', e);
     return false;
   }
+}
+
+export function clearAllStudyMateData(): void {
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('studymate_')) keysToRemove.push(key);
+  }
+  keysToRemove.forEach((k) => localStorage.removeItem(k));
 }

@@ -29,6 +29,7 @@ import {
   logActivity,
 } from '../../data/storage';
 import { playChimeSound } from '../../utils/sound';
+import { AiFallbackWarning, MedicalDisclaimer } from '../MedicalDisclaimer';
 
 interface StudyPlannerModuleProps {
   preferences: UserPreferences;
@@ -55,6 +56,7 @@ export const StudyPlannerModule: React.FC<StudyPlannerModuleProps> = ({
 
   // Spaced repetition AI generator
   const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
+  const [roadmapFallbackMessage, setRoadmapFallbackMessage] = useState<string | null>(null);
   const [roadmapSubject, setRoadmapSubject] = useState(preferences.currentSubjects[0] || 'Nội khoa Tim mạch');
   const [roadmapExamDate, setRoadmapExamDate] = useState(
     preferences.examinationDates[0]?.date || new Date(Date.now() + 86400000 * 14).toISOString().split('T')[0]
@@ -230,6 +232,7 @@ export const StudyPlannerModule: React.FC<StudyPlannerModuleProps> = ({
   // Generate AI Spaced Repetition Roadmap
   const handleGenerateRoadmap = async () => {
     setIsGeneratingRoadmap(true);
+    setRoadmapFallbackMessage(null);
     try {
       const response = await fetch('/api/gemini/roadmap', {
         method: 'POST',
@@ -243,12 +246,16 @@ export const StudyPlannerModule: React.FC<StudyPlannerModuleProps> = ({
       });
 
       const data = await response.json();
-      if (!data.success || !data.roadmap) {
+      const roadmap = data.roadmap || data;
+      const plan = Array.isArray(roadmap.dailyPlan) ? roadmap.dailyPlan : [];
+      if (!plan.length) {
         throw new Error(data.error || 'Lỗi khi tạo lộ trình');
+      }
+      if (data._fallback) {
+        setRoadmapFallbackMessage(data._fallbackMessage || 'Đang hiển thị lộ trình dự phòng do AI tạm thời không khả dụng.');
       }
 
       const generatedTasks: StudyTask[] = [];
-      const plan = data.roadmap.dailyPlan || [];
 
       plan.forEach((dayItem: any, index: number) => {
         const taskDate = new Date(Date.now() + 86400000 * index).toISOString().split('T')[0];
@@ -516,6 +523,8 @@ export const StudyPlannerModule: React.FC<StudyPlannerModuleProps> = ({
               </>
             )}
           </button>
+          {roadmapFallbackMessage && <div className="mt-3"><AiFallbackWarning message={roadmapFallbackMessage} /></div>}
+          <div className="mt-3"><MedicalDisclaimer compact /></div>
         </div>
       </div>
 

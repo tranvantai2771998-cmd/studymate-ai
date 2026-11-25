@@ -6,10 +6,21 @@ import {
   onAuthStateChanged,
   User,
 } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+import firebaseConfigJson from '../../firebase-applet-config.json';
 
-const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfigJson.projectId,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfigJson.appId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfigJson.storageBucket,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfigJson.messagingSenderId,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || firebaseConfigJson.measurementId,
+};
+
+const hasFirebaseConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+const app = getApps().length > 0 ? getApp() : (hasFirebaseConfig ? initializeApp(firebaseConfig) : null);
+const auth = app ? getAuth(app) : null;
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const NOTEBOOK_FOLDER_NAME = 'StudyMate AI - Gemini Notebook';
@@ -38,6 +49,10 @@ export const initDriveAuth = (
   onAuthSuccess?: (user: User, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  if (!auth) {
+    onAuthFailure?.();
+    return () => {};
+  }
   return onAuthStateChanged(auth, (user: User | null) => {
     if (user) {
       if (cachedAccessToken) {
@@ -57,6 +72,9 @@ export const signInWithGoogleDrive = async (): Promise<{
   user: User;
   accessToken: string;
 }> => {
+  if (!auth) {
+    throw new Error('Tính năng Google Drive chưa được cấu hình Firebase. Vui lòng liên hệ quản trị viên.');
+  }
   isSigningIn = true;
   try {
     const provider = new GoogleAuthProvider();
@@ -77,11 +95,11 @@ export const signInWithGoogleDrive = async (): Promise<{
 
 export const signOutGoogleDrive = async (): Promise<void> => {
   cachedAccessToken = null;
-  await auth.signOut();
+  if (auth) await auth.signOut();
 };
 
 export const getDriveAccessToken = (): string | null => cachedAccessToken;
-export const getCurrentDriveUser = (): User | null => auth.currentUser;
+export const getCurrentDriveUser = (): User | null => auth?.currentUser ?? null;
 
 async function driveFetch(url: string, accessToken: string, init?: RequestInit) {
   const res = await fetch(url, {

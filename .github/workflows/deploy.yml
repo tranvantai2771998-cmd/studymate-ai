@@ -1,3 +1,7 @@
+# WARNING: This workflow deploys a static Vite build to GitHub Pages.
+# StudyMate AI includes Express /api/* endpoints (server.ts) required for AI features.
+# Use this only if you have migrated API routes to a separate backend/serverless
+# and configured CORS_ORIGIN accordingly. Prefer deploying the Node server for full functionality.
 name: Deploy StudyMate AI to GitHub Pages
 
 on:

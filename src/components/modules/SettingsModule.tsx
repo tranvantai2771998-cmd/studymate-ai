@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Settings,
   User,
@@ -11,9 +11,12 @@ import {
   CheckCircle2,
   Sparkles,
   BookOpen,
+  Download,
+  Upload,
+  AlertTriangle,
 } from 'lucide-react';
 import { UserPreferences, ExaminationDate, UserRole } from '../../types';
-import { savePreferences } from '../../data/storage';
+import { savePreferences, exportFullApplicationBackup, importApplicationBackup, clearAllStudyMateData } from '../../data/storage';
 
 interface SettingsModuleProps {
   preferences: UserPreferences;
@@ -37,6 +40,43 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
   const [newExamDate, setNewExamDate] = useState('');
 
   const [isSaved, setIsSaved] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportBackup = () => {
+    const data = exportFullApplicationBackup();
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `studymate-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const ok = importApplicationBackup(text);
+      if (ok) {
+        alert('Đã nhập dữ liệu sao lưu. Trang sẽ tải lại để áp dụng.');
+        window.location.reload();
+      } else {
+        alert('File sao lưu không hợp lệ.');
+      }
+    } catch {
+      alert('Không thể đọc file sao lưu.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleClearData = () => {
+    if (!confirm('Xóa toàn bộ dữ liệu StudyMate trên trình duyệt này? Hành động không thể hoàn tác.')) return;
+    clearAllStudyMateData();
+    window.location.reload();
+  };
 
   const handleAddSubject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,6 +346,29 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Data & privacy */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800 pb-3">
+          <AlertTriangle className="w-4 h-4 text-amber-500" />
+          <span>Dữ liệu & Sao lưu</span>
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          Dữ liệu học tập hiện được lưu <strong>cục bộ trên trình duyệt này (localStorage)</strong>, chưa đồng bộ tài khoản/máy chủ. Hãy xuất sao lưu định kỳ trước khi xóa trình duyệt hoặc đổi thiết bị.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleExportBackup} className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <Download className="w-3.5 h-3.5" /> Xuất sao lưu JSON
+          </button>
+          <button type="button" onClick={() => importInputRef.current?.click()} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <Upload className="w-3.5 h-3.5" /> Nhập sao lưu
+          </button>
+          <button type="button" onClick={handleClearData} className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <Trash2 className="w-3.5 h-3.5" /> Xóa dữ liệu cục bộ
+          </button>
+          <input ref={importInputRef} type="file" accept="application/json" className="hidden" onChange={handleImportBackup} />
         </div>
       </div>
     </div>

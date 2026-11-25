@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,7 +13,63 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '25mb' }));
+app.disable('x-powered-by');
+if (process.env.TRUST_PROXY === 'true') {
+  app.set('trust proxy', 1);
+}
+
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.status(allowedOrigins.includes(String(origin)) ? 204 : 403).end();
+  }
+  return next();
+});
+
+app.use(express.json({ limit: '10mb' }));
+
+// --- Basic in-memory rate limiting (per IP, per window) ---
+type RateBucket = { count: number; resetAt: number };
+const rateBuckets = new Map<string, RateBucket>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 30;
+
+function rateLimit(req: Request, res: Response, next: NextFunction) {
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const bucket = rateBuckets.get(ip);
+  if (!bucket || now > bucket.resetAt) {
+    rateBuckets.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return next();
+  }
+  bucket.count += 1;
+  if (bucket.count > RATE_LIMIT_MAX) {
+    const retryAfter = Math.ceil((bucket.resetAt - now) / 1000);
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json({
+      error: true,
+      message: `Bạn gửi yêu cầu quá nhanh. Vui lòng thử lại sau ${retryAfter} giây.`,
+    });
+  }
+  return next();
+}
+
+app.use('/api/', rateLimit);
 
 // Initialize GoogleGenAI SDK on server
 const ai = new GoogleGenAI({
@@ -27,21 +83,50 @@ const ai = new GoogleGenAI({
 
 const HAS_API_KEY = Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY');
 
+const MEDICAL_SAFETY_INSTRUCTION = `QUY TẮC AN TOÀN Y KHOA BẮT BUỘC:
+- Nội dung chỉ phục vụ mục đích giáo dục/học tập cho sinh viên, không thay thế chẩn đoán, kê đơn, điều trị hoặc tư vấn y tế cá nhân.
+- Không đưa ra chỉ định điều trị cá nhân hóa, liều thuốc cho ca cụ thể, hoặc hướng dẫn xử trí cấp cứu thay cho cơ sở y tế.
+- Nếu câu hỏi mang tính chẩn đoán/điều trị cá nhân hoặc tình huống khẩn cấp, hãy khuyên người dùng liên hệ bác sĩ/nhân viên y tế/cơ sở cấp cứu phù hợp.
+- Nêu rõ giới hạn của thông tin, ưu tiên kiến thức dựa trên nguồn tài liệu được cung cấp hoặc kiến thức y khoa chuẩn mực; không bịa đặt nguồn, số trang, hoặc dữ liệu lâm sàng.
+- Khi không chắc chắn, phải nói rõ "không đủ bằng chứng trong tài liệu/không chắc chắn" thay vì suy đoán.`;
+
+function getErrorMessage(error: any): string {
+  const raw = String(error?.message || '').toLowerCase();
+  if (raw.includes('api key') || raw.includes('unauthorized') || raw.includes('permission denied') || error?.status === 401 || error?.status === 403) {
+    return 'Không thể xác thực với dịch vụ AI. Vui lòng kiểm tra cấu hình GEMINI_API_KEY phía máy chủ.';
+  }
+  if (raw.includes('quota') || raw.includes('rate') || error?.status === 429) {
+    return 'Dịch vụ AI đang tạm quá tải hoặc vượt hạn mức. Vui lòng thử lại sau ít phút.';
+  }
+  if (raw.includes('timeout') || raw.includes('timed out') || raw.includes('network') || raw.includes('fetch failed') || raw.includes('econn')) {
+    return 'Không thể kết nối tới dịch vụ AI. Vui lòng kiểm tra mạng hoặc thử lại sau.';
+  }
+  return 'Có lỗi xảy ra khi xử lý yêu cầu AI. Vui lòng thử lại sau.';
+}
+
 // Helper for error responses
 function handleGeminiError(error: any, res: Response, fallbackGenerator?: () => any) {
   console.error('Gemini API Error:', error);
+  const status = Number(error?.status) || 500;
+  const safeStatus = status >= 400 && status < 600 ? status : 500;
+  const message = getErrorMessage(error);
+
   if (fallbackGenerator) {
     try {
       const fallbackData = fallbackGenerator();
-      return res.json({ ...fallbackData, _fallback: true });
-    } catch {}
+      return res.status(200).json({
+        ...fallbackData,
+        _fallback: true,
+        _fallbackMessage: `${message} Hệ thống hiển thị nội dung dự phòng mang tính tham khảo học tập; cần kiểm chứng trước khi sử dụng.`,
+      });
+    } catch {
+      // fall through to error response
+    }
   }
-  const status = error?.status || 500;
-  const message = error?.message || 'Có lỗi xảy ra khi kết nối với AI. Hệ thống đang sử dụng dữ liệu dự phòng.';
-  return res.status(status).json({
+
+  return res.status(safeStatus).json({
     error: true,
     message,
-    details: error?.toString(),
   });
 }
 
@@ -87,7 +172,7 @@ app.post('/api/documents/extract', async (req: Request, res: Response) => {
               },
             },
             {
-              text: 'Hãy trích xuất toàn bộ nội dung văn bản, tiêu đề, danh sách và bảng biểu trong tài liệu PDF này giữ nguyên ngôn ngữ gốc và định dạng Markdown rõ ràng. Không bỏ sót thông tin và không bình luận thêm.',
+              text: 'Hãy trích xuất toàn bộ nội dung văn bản trong PDF này theo từng trang. Với mỗi trang, bắt đầu bằng dòng "[Trang N]" (N là số trang). Giữ nguyên ngôn ngữ gốc, tiêu đề, danh sách, bảng biểu ở dạng Markdown. Với hình ảnh/biểu đồ, thêm dòng mô tả ngắn dạng "[Hình ảnh trang N: ...]". Không bỏ sót thông tin và không bình luận thêm.',
             },
           ],
         },
@@ -217,6 +302,7 @@ ${combinedText ? `--- NỘI DUNG TÀI LIỆU / GHI CHÚ BỔ SUNG ---\n${combine
       contents: parts.length === 1 ? promptText : { parts },
       config: {
         systemInstruction: `Bạn là Giáo sư kiêm Cố vấn Học thuật Y khoa và Đại học hàng đầu (StudyMate AI).
+${MEDICAL_SAFETY_INSTRUCTION}
 Nếu tài liệu liên quan đến Y học, Nha khoa hoặc Khoa học sự sống, hãy trích xuất chính xác:
 - Cấu trúc giải phẫu (Anatomical structures)
 - Biểu hiện lâm sàng (Clinical manifestations)
@@ -224,7 +310,7 @@ Nếu tài liệu liên quan đến Y học, Nha khoa hoặc Khoa học sự s�
 - Nguyên tắc điều trị (Treatment principles)
 - Chống chỉ định & biến chứng (Contraindications & complications)
 - Những điểm dễ nhầm lẫn (Pitfalls)
-Không bịa đặt thông tin nằm ngoài tài liệu gốc. Trả về cấu trúc JSON đúng chuẩn.`,
+Chỉ dựa trên nội dung tài liệu được cung cấp; không bịa đặt. Nếu tài liệu thiếu dữ liệu, ghi rõ "Không có trong tài liệu". Trả về cấu trúc JSON đúng chuẩn.`,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -330,7 +416,8 @@ Yêu cầu phong cách: ${instruction}
 ${followUpHistory.length > 0 ? `Lịch sử trao đổi trước đó: ${JSON.stringify(followUpHistory)}` : ''}`,
       config: {
         systemInstruction: `Bạn là Gia sư AI kiêm Giáo sư Y học/Đại học tận tâm (StudyMate AI).
-Giải thích chính xác, logic, truyền cảm hứng bằng Tiếng Việt. Phân biệt rõ các ví dụ sư phạm với phác đồ điều trị thực tế. Trả về JSON theo đúng schema.`,
+${MEDICAL_SAFETY_INSTRUCTION}
+Giải thích chính xác, logic, truyền cảm hứng bằng Tiếng Việt. Phân biệt rõ ví dụ sư phạm với phác đồ điều trị thực tế. Không đưa chỉ định cá nhân. Trả về JSON theo đúng schema.`,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -436,12 +523,14 @@ ${content}
 --- HẾT NỘI DUNG ---`,
       config: {
         systemInstruction: `Bạn là Chủ tịch Hội đồng Khảo thí Đại học Y Dược (StudyMate AI).
-Thiết kế các câu hỏi trắc nghiệm khách quan chuẩn mực:
-- Câu hỏi rõ ràng, bám sát y văn, không mập mờ.
-- Đầy đủ 4 phương án (A, B, C, D) với các phương án nhiễu (distractors) hợp lý có tính sư phạm cao.
+${MEDICAL_SAFETY_INSTRUCTION}
+Thiết kế các câu hỏi trắc nghiệm khách quan chuẩn mực cho mục đích học tập:
+- Câu hỏi rõ ràng, bám sát kiến thức chuẩn, không mập mờ.
+- Đầy đủ 4 phương án (A, B, C, D) với distractors hợp lý có tính sư phạm.
 - Có đúng chỉ số correctAnswerIndex (0, 1, 2 hoặc 3).
 - Giải thích tổng quan lý do đáp án đúng.
 - Phân tích chi tiết tại sao từng phương án đúng hoặc sai (optionExplanations).
+- Không sử dụng ca lâm sàng như tư vấn điều trị cho bệnh nhân thật; ca lâm sàng chỉ là tình huống giả định phục vụ ôn tập.
 Tất cả bằng Tiếng Việt. Trả về JSON theo đúng schema.`,
         responseMimeType: 'application/json',
         responseSchema: {
@@ -522,9 +611,10 @@ Trình độ hiện tại: ${currentLevel}
 ${examDate ? `Ngày thi dự kiến: ${examDate}` : ''}`,
       config: {
         systemInstruction: `Bạn là Chuyên gia Cố vấn Học tập & Huấn luyện viên Trí nhớ Khoa học (StudyMate AI).
-Lập kế hoạch phân bổ từng ngày cụ thể, áp dụng nghiêm ngặt:
+${MEDICAL_SAFETY_INSTRUCTION}
+Lập kế hoạch học tập giáo dục, không đưa chỉ định điều trị cá nhân. Áp dụng:
 1. Spaced Repetition (Ôn lặp lại bài cũ các ngày trước).
-2. Active Recall & Practice Testing (Câu hỏi kiểm tra, ca bệnh).
+2. Active Recall & Practice Testing (Câu hỏi kiểm tra, ca bệnh giả định cho ôn tập).
 3. Pomodoro (25 phút mỗi phiên).
 Trả về JSON đúng cấu trúc.`,
         responseMimeType: 'application/json',
@@ -585,26 +675,35 @@ app.post('/api/gemini/notebook', async (req: Request, res: Response) => {
     return res.status(400).json({ error: true, message: 'Vui lòng nhập câu hỏi hoặc yêu cầu tổng hợp cho Gemini Notebook.' });
   }
 
-  const normalizedSources = sources.slice(0, 12).map((src: any, idx: number) => ({
-    index: idx + 1,
-    title: String(src.title || `Nguồn ${idx + 1}`),
-    subject: String(src.subject || 'Chung'),
-    content: String(src.content || '').slice(0, 12000),
-  }));
+  const normalizedSources = sources.slice(0, 12).map((src: any, idx: number) => {
+    const content = String(src.content || '').slice(0, 12000);
+    const pageMatches = Array.from(content.matchAll(/\[Trang\s+(\d+)\]/gi)).map((m) => Number(m[1]));
+    const pages = Array.from(new Set(pageMatches)).filter((n) => Number.isFinite(n)).slice(0, 20);
+    return {
+      index: idx + 1,
+      id: String(src.id || ''),
+      title: String(src.title || `Nguồn ${idx + 1}`),
+      subject: String(src.subject || 'Chung'),
+      content,
+      pages,
+    };
+  });
 
   const generateFallback = () => ({
-    answer: `Tổng hợp từ ${normalizedSources.length} tài liệu đã chọn (${normalizedSources.map((s) => `[${s.index}] ${s.title}`).join(', ')}):\n\nDựa trên kho lưu trữ hiện tại, các tài liệu tập trung vào cơ chế cốt lõi, dấu hiệu nhận biết và nguyên tắc xử trí/ứng dụng thực tiễn liên quan đến câu hỏi "${question}".`,
+    answer: `Không thể kết nối AI để tổng hợp chính xác từ nguồn. Bạn đã chọn ${normalizedSources.length} tài liệu: ${normalizedSources.map((s) => `[Nguồn ${s.index}] ${s.title}`).join(', ')}. Vui lòng thử lại sau khi kết nối AI ổn định để nhận câu trả lời có trích dẫn kiểm chứng.`,
     citations: normalizedSources.slice(0, 3).map((s) => ({
+      sourceIndex: s.index,
       sourceTitle: s.title,
-      excerpt: s.content.slice(0, 140) + (s.content.length > 140 ? '...' : ''),
+      page: s.pages[0],
+      excerpt: s.content.slice(0, 160) + (s.content.length > 160 ? '...' : ''),
     })),
     keyInsights: [
-      'Đối chiếu nguyên lý cơ bản giữa các tài liệu nguồn đã chọn.',
-      'Lưu ý các chống chỉ định hoặc điểm dễ nhầm lẫn được ghi nhận trong tài liệu.',
+      'Chế độ dự phòng không tạo phân tích mới để tránh suy diễn ngoài tài liệu.',
+      'Hãy kiểm tra trực tiếp các nguồn đã chọn và thử lại khi AI sẵn sàng.',
     ],
     suggestedQuestions: [
-      'Hãy lập bảng so sánh các điểm khác biệt chính giữa những tài liệu nguồn đã chọn?',
-      'Tạo danh sách ôn tập nhanh (Study Guide) từ các nguồn này?',
+      'Những trang nào trong nguồn nói trực tiếp về vấn đề tôi đang hỏi?',
+      'Nguồn nào có bằng chứng mạnh nhất cho câu hỏi này?',
     ],
   });
 
@@ -614,17 +713,17 @@ app.post('/api/gemini/notebook', async (req: Request, res: Response) => {
 
   try {
     const modeDirectives: Record<string, string> = {
-      qa: 'Trả lời chính xác câu hỏi dựa hoàn toàn vào các tài liệu nguồn được cung cấp, kèm trích dẫn cụ thể [Nguồn X].',
-      study_guide: 'Biên soạn tài liệu hướng dẫn ôn tập (Study Guide) có hệ thống từ toàn bộ các nguồn đã chọn.',
-      briefing: 'Tạo bản tóm tắt tổng quan (Briefing Doc) nêu bật luận điểm chính, liên kết chéo giữa các nguồn và kết luận.',
-      compare: 'So sánh, đối chiếu điểm giống, khác và mối liên hệ lâm sàng/học thuật giữa các nguồn.',
+      qa: 'Trả lời chính xác câu hỏi dựa hoàn toàn vào các tài liệu nguồn được cung cấp, kèm trích dẫn [Nguồn X, Trang Y] khi có thông tin trang.',
+      study_guide: 'Biên soạn Study Guide có hệ thống từ các nguồn đã chọn, kèm trích dẫn [Nguồn X, Trang Y] khi có.',
+      briefing: 'Tạo Briefing Doc nêu luận điểm chính và liên kết giữa các nguồn, kèm trích dẫn [Nguồn X, Trang Y] khi có.',
+      compare: 'So sánh/đối chiếu các nguồn, nêu rõ điểm giống/khác và nêu [Nguồn X, Trang Y] cho từng luận điểm khi có.',
     };
 
     const sourceContext = normalizedSources
-      .map(
-        (s) =>
-          `=== [Nguồn ${s.index}] ${s.title} (Môn: ${s.subject}) ===\n${s.content}\n=== Hết Nguồn ${s.index} ===`
-      )
+      .map((s) => {
+        const pageInfo = s.pages.length ? ` | Trang phát hiện: ${s.pages.join(', ')}` : ' | Không có marker trang';
+        return `=== [Nguồn ${s.index}] ${s.title} (Môn: ${s.subject}${pageInfo}) ===\n${s.content}\n=== Hết Nguồn ${s.index} ===`;
+      })
       .join('\n\n');
 
     const response = await ai.models.generateContent({
@@ -635,13 +734,15 @@ app.post('/api/gemini/notebook', async (req: Request, res: Response) => {
 ${sourceContext}
 --- HẾT KHO TÀI LIỆU ---
 
-${Array.isArray(history) && history.length > 0 ? `Lịch sử hỏi đáp trước đó:\n${JSON.stringify(history.slice(-6))}\n\n` : ''}Yêu cầu của người học: "${question.trim()}"`,
+${Array.isArray(history) && history.length > 0 ? `Lịch sử hỏi đáp trước đó:\n${JSON.stringify(history.slice(-6))}\n\n` : ''}Yêu cầu của người học: "${String(question).trim()}"`,
       config: {
-        systemInstruction: `Bạn là Trợ lý Gemini Notebook của StudyMate AI (hoạt động tương tự NotebookLM).
+        systemInstruction: `Bạn là Trợ lý Gemini Notebook của StudyMate AI.
+${MEDICAL_SAFETY_INSTRUCTION}
 Quy tắc bắt buộc:
-1. Chỉ sử dụng thông tin có trong KHO TÀI LIỆU NGUỒN được cung cấp. Nếu tài liệu không đề cập khía cạnh nào, hãy nói rõ là không có trong nguồn thay vì tự suy diễn.
-2. Trích dẫn rõ nguồn bằng định dạng [Nguồn 1], [Nguồn 2]... ngay trong câu trả lời.
-3. Trả lời bằng Tiếng Việt rõ ràng, mạch lạc, có cấu trúc. Trả về đúng schema JSON.`,
+1. Chỉ sử dụng thông tin có trong KHO TÀI LIỆU NGUỒN được cung cấp. Nếu nguồn không có, nói rõ "Không tìm thấy trong nguồn đã chọn".
+2. Mọi luận điểm quan trọng phải có trích dẫn. Ưu tiên định dạng [Nguồn X, Trang Y] khi có marker trang; nếu không có trang, dùng [Nguồn X].
+3. Không bịa số trang. Nếu thiếu số trang, để page = null hoặc bỏ qua Trang Y.
+4. Trả lời bằng Tiếng Việt, rõ ràng, có cấu trúc. Trả về đúng schema JSON.`,
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,
@@ -652,7 +753,9 @@ Quy tắc bắt buộc:
               items: {
                 type: Type.OBJECT,
                 properties: {
+                  sourceIndex: { type: Type.INTEGER },
                   sourceTitle: { type: Type.STRING },
+                  page: { type: Type.INTEGER },
                   excerpt: { type: Type.STRING },
                 },
                 required: ['sourceTitle', 'excerpt'],
@@ -668,6 +771,61 @@ Quy tắc bắt buộc:
 
     const parsed = JSON.parse(response.text || '{}');
     return res.json(parsed);
+  } catch (error) {
+    return handleGeminiError(error, res, generateFallback);
+  }
+});
+
+// 6. Endpoint Chatbot học thuật (thay thế gọi Gemini trực tiếp từ frontend)
+app.post('/api/gemini/chat', async (req: Request, res: Response) => {
+  const { question = '', history = [] } = req.body || {};
+  const q = typeof question === 'string' ? question.trim() : '';
+  if (!q) {
+    return res.status(400).json({ error: true, message: 'Vui lòng nhập câu hỏi.' });
+  }
+  if (q.length > 4000) {
+    return res.status(400).json({ error: true, message: 'Câu hỏi quá dài. Vui lòng rút gọn dưới 4000 ký tự.' });
+  }
+
+  const safeHistory = Array.isArray(history)
+    ? history.slice(-8).map((m: any) => ({
+        role: m?.role === 'assistant' ? 'assistant' : 'user',
+        text: String(m?.text || '').slice(0, 1000),
+      }))
+    : [];
+
+  const generateFallback = () => ({
+    reply:
+      'Mình đang gặp sự cố kết nối AI nên chưa thể trả lời chi tiết. Bạn có thể thử lại sau ít phút. Trong lúc chờ, hãy nêu rõ: (1) chủ đề, (2) bối cảnh học tập/ôn thi, (3) phần bạn đang chưa hiểu để mình hỗ trợ chính xác hơn khi hệ thống hoạt động trở lại.\n\nLưu ý: Nội dung chỉ mang tính giáo dục, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.',
+  });
+
+  if (!HAS_API_KEY) {
+    return res.json({
+      ...generateFallback(),
+      _fallback: true,
+      _fallbackMessage: 'Máy chủ chưa cấu hình GEMINI_API_KEY. Vui lòng liên hệ quản trị viên.',
+    });
+  }
+
+  try {
+    const historyText = safeHistory
+      .map((m) => `${m.role === 'assistant' ? 'Trợ lý' : 'Người học'}: ${m.text}`)
+      .join('\n');
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-4-hydrogen',
+      contents: `${historyText ? `Lịch sử hội thoại gần đây:\n${historyText}\n\n` : ''}Câu hỏi hiện tại của người học: ${q}`,
+      config: {
+        systemInstruction: `Bạn là trợ lý học thuật AI cho sinh viên Y khoa, Răng Hàm Mặt và Đại học.
+${MEDICAL_SAFETY_INSTRUCTION}
+Phong cách: rõ ràng, sư phạm, dùng Markdown khi phù hợp, giải thích cơ chế và lưu ý điểm dễ nhầm.
+Nếu người dùng hỏi chẩn đoán/điều trị cá nhân: từ chối đưa chỉ định cá nhân, cung cấp kiến thức giáo dục tổng quát và khuyến nghị gặp bác sĩ/chuyên gia y tế.
+Cuối câu trả lời nên có 1 câu hỏi gợi mở học tập (không phải câu hỏi chẩn đoán cá nhân).`,
+      },
+    });
+
+    const reply = (response.text || '').trim();
+    return res.json({ reply: reply || generateFallback().reply });
   } catch (error) {
     return handleGeminiError(error, res, generateFallback);
   }

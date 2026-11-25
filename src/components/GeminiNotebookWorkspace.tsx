@@ -135,9 +135,10 @@ export const GeminiNotebookWorkspace: React.FC<GeminiNotebookWorkspaceProps> = (
     Array<{
       role: 'user' | 'assistant';
       text: string;
-      citations?: { sourceTitle: string; excerpt: string }[];
+      citations?: { sourceIndex?: number; sourceTitle: string; page?: number | null; excerpt: string }[];
       keyInsights?: string[];
       suggestedQuestions?: string[];
+      fallbackMessage?: string;
     }>
   >([]);
   const [isQueryingNotebook, setIsQueryingNotebook] = useState(false);
@@ -715,6 +716,7 @@ export const GeminiNotebookWorkspace: React.FC<GeminiNotebookWorkspaceProps> = (
           citations: data.citations || [],
           keyInsights: data.keyInsights || [],
           suggestedQuestions: data.suggestedQuestions || [],
+          fallbackMessage: data._fallback ? (data._fallbackMessage || 'Nội dung dự phòng - cần kiểm chứng.') : undefined,
         },
       ]);
     } catch (err: any) {
@@ -1184,6 +1186,11 @@ export const GeminiNotebookWorkspace: React.FC<GeminiNotebookWorkspaceProps> = (
                     }`}
                   >
                     <p className="whitespace-pre-line leading-relaxed">{msg.text}</p>
+                    {msg.fallbackMessage && (
+                      <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-200">
+                        ⚠️ {msg.fallbackMessage}
+                      </div>
+                    )}
 
                     {msg.keyInsights && msg.keyInsights.length > 0 && (
                       <div className="p-2.5 rounded-lg bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200/70 dark:border-purple-800/50 space-y-1">
@@ -1213,7 +1220,8 @@ export const GeminiNotebookWorkspace: React.FC<GeminiNotebookWorkspaceProps> = (
                             className="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/80 text-[11px]"
                           >
                             <span className="font-semibold text-blue-600 dark:text-blue-400">
-                              [{cIdx + 1}] {cit.sourceTitle}:
+                              [{cit.sourceIndex || cIdx + 1}] {cit.sourceTitle}
+                              {cit.page ? `, Trang ${cit.page}` : ''}:
                             </span>{' '}
                             <span className="text-slate-600 dark:text-slate-300">{cit.excerpt}</span>
                           </div>

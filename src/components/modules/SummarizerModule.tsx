@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { StudySummary, UserPreferences } from '../../types';
 import { formatSummaryToMarkdown, downloadFile, triggerPrint } from '../../utils/exporter';
+import { AiFallbackWarning, MedicalDisclaimer } from '../MedicalDisclaimer';
 
 interface SummarizerModuleProps {
   currentSummary: StudySummary | null;
@@ -76,6 +77,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [summaryData, setSummaryData] = useState<StudySummary | null>(currentSummary);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [fallbackMessage, setFallbackMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isExtractingFile, setIsExtractingFile] = useState(false);
@@ -204,6 +206,7 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
 
     setIsLoading(true);
     setErrorMessage(null);
+    setFallbackMessage(null);
     setIsSaved(false);
 
     try {
@@ -257,6 +260,9 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
       setSummaryData(newSummary);
       onSaveSummary(newSummary);
       setIsSaved(true);
+      if (data?._fallback) {
+        setFallbackMessage(data._fallbackMessage || 'AI đang dùng dữ liệu dự phòng. Vui lòng kiểm chứng nội dung.');
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMessage(err.message || 'Lỗi khi kết nối với AI.');
@@ -487,12 +493,14 @@ export const SummarizerModule: React.FC<SummarizerModuleProps> = ({
           {errorMessage && (
             <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">{errorMessage}</p>
           )}
+          {fallbackMessage && <AiFallbackWarning message={fallbackMessage} />}
         </form>
       </div>
 
       {/* Generated Output Display */}
       {summaryData && (
         <div className="space-y-6">
+          <MedicalDisclaimer compact />
           {/* Action Toolbar */}
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 print:hidden">
             <span className="text-xs font-mono text-slate-400">

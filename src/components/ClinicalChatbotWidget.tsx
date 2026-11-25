@@ -7,13 +7,9 @@ import {
   Minimize2,
   BookOpen,
   Send,
-  HelpCircle,
   Lightbulb,
-  CheckCircle2,
   FileQuestion,
-  BookmarkPlus,
-  BrainCircuit,
-  Key
+  ShieldAlert
 } from 'lucide-react';
 
 interface ChatMessage {
@@ -110,14 +106,12 @@ export const ClinicalChatbotWidget: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'quiz' | 'tips'>('chat');
-  const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('STUDYMATE_GEMINI_KEY') || '');
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       sender: 'ai',
-      text: `Chào các em! Thầy là Giảng viên AI hướng dẫn Y khoa & Răng Hàm Mặt. 
+      text: `Chào các em! Mình là trợ lý học thuật AI hỗ trợ Y khoa & Răng Hàm Mặt. 
 
 Thầy ở đây để đồng hành cùng các em:
 - Giải thích cơ chế bệnh học & sinh lý bệnh logic.
@@ -141,68 +135,50 @@ Các em đang ôn tập đến bài học nào, cứ hỏi thầy nhé!`,
     }
   }, [messages, isOpen]);
 
-  // HÀM TƯ DUY & GIẢNG DẠY SƯ PHẠM Y KHOA
-  const getTeacherResponse = async (questionText: string): Promise<string> => {
+  const getTeacherResponse = async (questionText: string, history: ChatMessage[]): Promise<string> => {
     const lower = questionText.toLowerCase();
 
-    // 1. Kiểm tra trong kho tri thức chuyên sâu y khoa đã được huấn luyện
     for (const kb of MEDICAL_KNOWLEDGE_BASE) {
       const match = kb.keywords.some((kw) => lower.includes(kw));
       if (match) {
-        return kb.lesson;
+        return `${kb.lesson}\n\n> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`;
       }
     }
 
-    // 2. Nếu người dùng cấu hình API Key riêng hoặc gọi server
-    if (userApiKey) {
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${userApiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [
-                {
-                  role: 'user',
-                  parts: [
-                    {
-                      text: `Bạn là một NGƯỜI THẦY GIẢNG VIÊN Y KHOA & BÁC SĨ RĂNG HÀM MẶT giàu kinh nghiệm, tận tụy, ấm áp và sư phạm.
-MỤC TIÊU: Giảng giải, hướng dẫn sinh viên Y khoa học tập, ôn thi, hiểu cơ chế bệnh sinh, giải phẫu, dược lý, nha khoa (Implant, Nha chu, Nhổ răng, Nội nha, Kháng sinh).
-QUY TẮC BẮT BUỘC:
-- Xưng hô: "Thầy" - "Các em" / "Em".
-- KHÔNG dùng để tư vấn khám bệnh thực tế cho người bệnh. Luôn tập trung vào giải thích kiến thức, mẹo ghi nhớ cho sinh viên ôn thi.
-- Dùng Markdown rõ ràng, gạch đầu dòng, giải thích bản chất cơ chế khoa học.
-- Cuối câu luôn đặt 1 câu hỏi gợi mở tư duy để sinh viên tự suy ngẫm.
-
-Câu hỏi của sinh viên: "${questionText}"`
-                    }
-                  ]
-                }
-              ]
-            })
-          }
-        );
-        const data = await response.json();
-        const geminiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (geminiReply) return geminiReply;
-      } catch (e) {
-        console.error('Lỗi gọi Gemini trực tiếp:', e);
+    try {
+      const response = await fetch('/api/gemini/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: questionText,
+          history: history.slice(-8).map((m) => ({
+            role: m.sender === 'ai' ? 'assistant' : 'user',
+            text: m.text,
+          })),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || 'Không thể kết nối trợ lý AI.');
       }
+      const reply = typeof data?.reply === 'string' ? data.reply.trim() : '';
+      if (reply) {
+        const fallbackNote = data?._fallback ? `\n\n> ⚠️ ${data._fallbackMessage || 'Đang hiển thị nội dung dự phòng. Cần kiểm chứng trước khi sử dụng.'}` : '';
+        return `${reply}${fallbackNote}`;
+      }
+    } catch (e) {
+      console.error('Lỗi gọi chatbot backend:', e);
     }
 
-    // 3. Khung phân tích sư phạm tổng quát nếu câu hỏi nằm ngoài các chủ đề trên
-    return `👨‍🏫 **Thầy hướng dẫn phương pháp học tập:**
+    return `⚠️ Mình chưa thể kết nối dịch vụ AI lúc này. Bạn vui lòng thử lại sau.
 
-Câu hỏi của em về: **"${questionText}"** là một câu hỏi rất hay trong quá trình học tập.
+Trong lúc chờ, bạn có thể ôn theo khung:
+1. **Giải phẫu/sinh lý bình thường**
+2. **Cơ chế bệnh sinh**
+3. **Triệu chứng và cận lâm sàng**
+4. **Nguyên tắc xử trí theo guideline/sách giáo khoa**
 
-Để nắm chắc và trả lời tốt phần này khi thi, thầy khuyên em phân tích theo 4 bước logic của Bác sĩ:
-1. **Bản chất giải phẫu & sinh lý bình thường:** Cấu trúc này bình thường có đặc điểm gì?
-2. **Cơ chế bệnh sinh (Pathogenesis):** Tác nhân gây tổn thương phá hủy tế bào/mô ra sao?
-3. **Triệu chứng & Cận lâm sàng tương ứng:** Vì sao trên lâm sàng bệnh nhân có dấu hiệu này, và trên X-quang/Xét nghiệm thấy hình ảnh gì?
-4. **Hướng xử trí dựa trên y học chứng cứ:** Phác đồ điều trị được khuyến cáo trong sách giáo khoa là gì?
-
-👉 Em có muốn thầy làm rõ một khía cạnh cụ thể nào trong bài học này không?`;
+> Nội dung chỉ phục vụ học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`;
   };
 
   const handleSend = async (customText?: string) => {
@@ -216,12 +192,13 @@ Câu hỏi của em về: **"${questionText}"** là một câu hỏi rất hay t
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const nextHistory = [...messages, userMsg];
+    setMessages(nextHistory);
     if (!customText) setInput('');
     setIsLoading(true);
 
     try {
-      const reply = await getTeacherResponse(textToSend);
+      const reply = await getTeacherResponse(textToSend, nextHistory);
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
@@ -235,7 +212,7 @@ Câu hỏi của em về: **"${questionText}"** là một câu hỏi rất hay t
         {
           id: (Date.now() + 1).toString(),
           sender: 'ai',
-          text: 'Thầy đang rà soát lại tài liệu giảng dạy, em chờ thầy một chút nhé!',
+          text: '⚠️ Không thể kết nối dịch vụ AI. Vui lòng thử lại sau. Nội dung chỉ mang tính học tập, không thay thế tư vấn y tế cá nhân.',
           time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -284,13 +261,6 @@ Câu hỏi của em về: **"${questionText}"** là một câu hỏi rất hay t
             </div>
             <div className="flex items-center gap-1 text-white/80">
               <button
-                onClick={() => setShowKeyInput(!showKeyInput)}
-                title="Cấu hình Gemini API Key riêng (tùy chọn)"
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <Key className="w-3.5 h-3.5" />
-              </button>
-              <button
                 onClick={() => setMessages([messages[0]])}
                 title="Làm mới cuộc trò chuyện"
                 className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
@@ -307,33 +277,9 @@ Câu hỏi của em về: **"${questionText}"** là một câu hỏi rất hay t
             </div>
           </div>
 
-          {/* Ô nhập API Key riêng nếu muốn mở rộng trí tuệ không giới hạn */}
-          {showKeyInput && (
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/60 border-b border-indigo-200 dark:border-indigo-900 text-xs flex items-center gap-2">
-              <Key className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <input
-                type="password"
-                placeholder="Nhập Gemini API Key của bạn (nếu có)..."
-                value={userApiKey}
-                onChange={(e) => {
-                  setUserApiKey(e.target.value);
-                  localStorage.setItem('STUDYMATE_GEMINI_KEY', e.target.value);
-                }}
-                className="flex-1 px-2 py-1 bg-white dark:bg-slate-800 rounded border border-indigo-300 dark:border-indigo-700 text-xs text-slate-800 dark:text-slate-100 outline-none"
-              />
-              <button
-                onClick={() => setShowKeyInput(false)}
-                className="px-2 py-1 bg-indigo-600 text-white rounded text-[11px] font-medium"
-              >
-                Lưu
-              </button>
-            </div>
-          )}
-
-          {/* Banner định hướng học tập */}
-          <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200/60 dark:border-amber-900/40 flex items-center gap-1.5 shrink-0 text-[10px] text-amber-800 dark:text-amber-200">
-            <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span>Mục đích học tập, giải thích bài giảng & ôn thi. Không dùng khám chữa bệnh nhân.</span>
+          <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200/60 dark:border-amber-900/40 flex items-start gap-1.5 shrink-0 text-[10px] text-amber-800 dark:text-amber-200">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <span>Nội dung chỉ phục vụ <b>học tập</b>. Không dùng để chẩn đoán, kê đơn hoặc thay thế tư vấn của bác sĩ/nhân viên y tế.</span>
           </div>
 
           {/* Tab chuyển đổi tính năng: Hỏi đáp / Đố vui / Mẹo thi */}
