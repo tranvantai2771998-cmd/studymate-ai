@@ -16,6 +16,24 @@
   <body class="bg-[#FAF9F6] text-slate-800 antialiased selection:bg-stone-200">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Fallback listener for NotebookLM bubble popup
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest('#nlm-bubble-btn');
+        if (btn) {
+          var url = 'https://notebook.google.com/notebook/7682c14b-6c70-493f-a5f9-ff0d22da6dcc/preview';
+          var width = 420;
+          var height = 650;
+          var left = window.screen.width - width - 30;
+          var top = window.screen.height - height - 80;
+          window.open(
+            url,
+            'NotebookLMChat',
+            'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=yes'
+          );
+        }
+      });
+    </script>
   </body>
 </html>
 

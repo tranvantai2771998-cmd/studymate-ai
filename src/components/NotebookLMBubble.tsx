@@ -107,24 +107,41 @@ export const NotebookLMBubble: React.FC<NotebookLMBubbleProps> = ({
       )}
 
       {/* Floating Launcher Bubble Button (#nlm-bubble-btn) */}
-      <div className="fixed bottom-5 right-5 z-40 print:hidden">
+      <div className="fixed bottom-5 right-5 z-40 print:hidden flex items-center gap-2">
         <button
           id="nlm-bubble-btn"
           type="button"
-          onClick={() => setIsDrawerOpen((prev) => !prev)}
-          title="Mở Kho Drive & Gemini Notebook trực tiếp tại đây"
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-teal-600 to-blue-600 hover:from-teal-500 hover:to-blue-500 text-white text-xs font-bold shadow-xl border border-white/15 transition-all cursor-pointer"
+          onClick={() => {
+            const url = 'https://notebook.google.com/notebook/7682c14b-6c70-493f-a5f9-ff0d22da6dcc/preview';
+            const width = 420;
+            const height = 650;
+            const left = window.screen.width - width - 30;
+            const top = window.screen.height - height - 80;
+
+            window.open(
+              url,
+              'NotebookLMChat',
+              `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+            );
+          }}
+          title="Mở Trợ lý Học tập Gemini NotebookLM của Anh Tài"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-600 hover:from-blue-500 hover:to-teal-500 text-white text-xs font-bold shadow-2xl border border-white/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
         >
           <span className="relative flex items-center justify-center">
-            <Cloud className="w-4 h-4" />
-            {isDriveConnected && (
-              <span
-                className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-300 ring-2 ring-teal-600"
-                title="Google Drive đã kết nối"
-              />
-            )}
+            <NotebookPen className="w-4 h-4 text-amber-300" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
           </span>
-          <span>Kho Drive &amp; Gemini Notebook</span>
+          <span>🤖 Trợ Lý Gemini NotebookLM</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsDrawerOpen((prev) => !prev)}
+          title="Mở Kho Drive & Tài liệu nội bộ"
+          className="p-2.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-lg text-xs font-semibold flex items-center justify-center cursor-pointer"
+        >
+          <Cloud className="w-4 h-4 text-teal-600 dark:text-teal-400" />
         </button>
       </div>
     </>
