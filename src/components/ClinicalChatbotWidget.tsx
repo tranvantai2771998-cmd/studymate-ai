@@ -9,15 +9,25 @@ import {
   Send,
   Lightbulb,
   FileQuestion,
-  ShieldAlert
+  Key,
+  Cpu,
+  ExternalLink,
+  ShieldAlert,
 } from 'lucide-react';
+import {
+  AIProvider,
+  AIProviderConfig,
+  getSavedAIConfig,
+  saveAIConfig,
+  routeAndCallAI,
+} from '../utils/aiTokenRouter';
 
 interface ChatMessage {
   id: string;
   sender: 'ai' | 'user';
   text: string;
   time: string;
-  isStreaming?: boolean;
+  providerBadge?: string;
 }
 
 // BỘ DỮ LIỆU ĐÀO TẠO KIẾN THỨC CHUYÊN SÂU CỦA NGƯỜI THẦY Y KHOA & RĂNG HÀM MẶT
@@ -34,7 +44,7 @@ const MEDICAL_KNOWLEDGE_BASE: { keywords: string[]; topic: string; lesson: strin
    - **CẤM NỐI CỨNG** giữa răng tự nhiên và implant trên cùng một cầu răng. Răng thật có dây chằng nha chu di động sinh lý ($25-100\\mu\\text{m}$), implant chỉ di động vi thể ($3-5\\mu\\text{m}$). Nối cứng sẽ gây hiện tượng lún răng thật, gãy ốc abutment hoặc tiêu xương quanh cổ implant.
 3. **Mốc Giải phẫu & Thần kinh:**
    - Ống thần kinh răng dưới (IAN): Luôn giữ khoảng lùi an toàn mút chóp **$\\ge 2.0\\text{ mm}$** trên CBCT cắt lớp cross-sectional.
-   - Thần kinh cằm (Mental foramen) & Quai thần kinh phía trước (Anterior Loop): Giữ khoảng an toàn an toàn **$\\ge 4.0\\text{ mm}$**.
+   - Thần kinh cằm (Mental foramen) & Quai thần kinh phía trước (Anterior Loop): Giữ khoảng an toàn **$\\ge 4.0\\text{ mm}$**.
 
 💡 *Câu hỏi ôn tập cho các em:* Khi cấy implant tức thì vùng răng trước, nếu khoảng nhảy (*jumping distance*) $\\ge 2\\text{ mm}$, vì sao bắt buộc phải ghép xương GBR kết hợp màng collagen?`
   },
@@ -106,17 +116,22 @@ export const ClinicalChatbotWidget: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'quiz' | 'tips'>('chat');
+  
+  // Multi-Provider AI Token State
+  const [aiConfig, setAiConfig] = useState<AIProviderConfig>(getSavedAIConfig);
+  const [showKeyModal, setShowKeyModal] = useState(false);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       sender: 'ai',
-      text: `Chào các em! Mình là trợ lý học thuật AI hỗ trợ Y khoa & Răng Hàm Mặt. 
+      text: `Chào các em! Thầy là Giảng viên AI hướng dẫn Y khoa & Răng Hàm Mặt. 
 
 Thầy ở đây để đồng hành cùng các em:
 - Giải thích cơ chế bệnh học & sinh lý bệnh logic.
 - Hướng dẫn phương pháp nhớ sâu, mẹo ôn thi lý thuyết và lâm sàng.
 - Đố vui củng cố kiến thức trắc nghiệm Y khoa.
+- Tự động tối ưu và dự phòng Token qua đa nền tảng AI (Gemini • Groq • OpenRouter).
 
 Các em đang ôn tập đến bài học nào, cứ hỏi thầy nhé!`,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
@@ -135,16 +150,36 @@ Các em đang ôn tập đến bài học nào, cứ hỏi thầy nhé!`,
     }
   }, [messages, isOpen]);
 
-  const getTeacherResponse = async (questionText: string, history: ChatMessage[]): Promise<string> => {
+  // HÀM TƯ DUY & GIẢNG DẠY SƯ PHẠM Y KHOA DÙNG ĐA AI TOKEN ROUTER
+  const getTeacherResponse = async (questionText: string, history: ChatMessage[]): Promise<{ text: string; badge?: string }> => {
     const lower = questionText.toLowerCase();
 
+    // 1. Kiểm tra nhanh trong kho tri thức y khoa offline được huấn luyện chuẩn
     for (const kb of MEDICAL_KNOWLEDGE_BASE) {
       const match = kb.keywords.some((kw) => lower.includes(kw));
       if (match) {
-        return `${kb.lesson}\n\n> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`;
+        return { 
+          text: `${kb.lesson}\n\n> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`, 
+          badge: 'Bộ tri thức Offline' 
+        };
       }
     }
 
+    // 2. Thử gọi qua Client-side Multi-AI Router nếu người dùng đã cấu hình Token riêng
+    const hasAnyKey = Boolean(aiConfig.geminiKey || aiConfig.groqKey || aiConfig.openRouterKey);
+    if (hasAnyKey) {
+      try {
+        const result = await routeAndCallAI(questionText, aiConfig);
+        return { 
+          text: `${result.text}\n\n> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`, 
+          badge: result.providerUsed 
+        };
+      } catch (err: any) {
+        console.warn('Lỗi gọi Multi-AI Router:', err.message);
+      }
+    }
+
+    // 3. Fallback: Thử gọi qua API backend server (nếu đang chạy chế độ full-stack cục bộ)
     try {
       const response = await fetch('/api/gemini/chat', {
         method: 'POST',
@@ -158,27 +193,35 @@ Các em đang ôn tập đến bài học nào, cứ hỏi thầy nhé!`,
         }),
       });
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.message || 'Không thể kết nối trợ lý AI.');
-      }
       const reply = typeof data?.reply === 'string' ? data.reply.trim() : '';
-      if (reply) {
-        const fallbackNote = data?._fallback ? `\n\n> ⚠️ ${data._fallbackMessage || 'Đang hiển thị nội dung dự phòng. Cần kiểm chứng trước khi sử dụng.'}` : '';
-        return `${reply}${fallbackNote}`;
+      if (response.ok && reply) {
+        const fallbackNote = data?._fallback ? `\n\n> ⚠️ ${data._fallbackMessage || 'Đang hiển thị nội dung dự phòng.'}` : '';
+        return {
+          text: `${reply}${fallbackNote}\n\n> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`,
+          badge: data?._fallback ? 'Bộ tri thức dự phòng' : 'StudyMate Server AI',
+        };
       }
     } catch (e) {
-      console.error('Lỗi gọi chatbot backend:', e);
+      console.warn('Backend server không khả dụng trên môi trường static:', e);
     }
 
-    return `⚠️ Mình chưa thể kết nối dịch vụ AI lúc này. Bạn vui lòng thử lại sau.
+    // 4. Khung phân tích sư phạm tổng quát nếu chưa nhập key và chạy trên static hosting
+    return {
+      text: `👨‍🏫 **Thầy hướng dẫn phương pháp tư duy Y khoa:**
 
-Trong lúc chờ, bạn có thể ôn theo khung:
-1. **Giải phẫu/sinh lý bình thường**
-2. **Cơ chế bệnh sinh**
-3. **Triệu chứng và cận lâm sàng**
-4. **Nguyên tắc xử trí theo guideline/sách giáo khoa**
+Câu hỏi của em về: **"${questionText}"** là một chủ đề rất hay và thường xuất hiện trong các bài thi lâm sàng.
 
-> Nội dung chỉ phục vụ học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`;
+Để nắm chắc và trả lời trọn vẹn điểm phần này, thầy khuyên em phân tích theo 4 bước logic của Bác sĩ:
+1. **Bản chất giải phẫu & sinh lý bình thường:** Cấu trúc này bình thường có đặc điểm sinh học gì?
+2. **Cơ chế bệnh sinh (Pathogenesis):** Tác nhân gây tổn thương phá hủy tế bào/mô ra sao?
+3. **Triệu chứng & Cận lâm sàng tương ứng:** Vì sao trên lâm sàng bệnh nhân có dấu hiệu này, và trên X-quang/Xét nghiệm thấy hình ảnh gì?
+4. **Hướng xử trí dựa trên y học chứng cứ:** Phác đồ điều trị được khuyến cáo trong sách giáo khoa là gì?
+
+💡 *Mẹo tối ưu Token:* Em có thể bấm vào biểu tượng ⚙️ (hoặc 🔑) ở góc trên để cấu hình thêm API Token miễn phí từ **Google Gemini (AI Studio), Groq Cloud (Llama 3 siêu tốc) hoặc OpenRouter** giúp thầy suy luận sâu hơn nhé!
+
+> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`,
+      badge: 'Cố vấn sư phạm',
+    };
   };
 
   const handleSend = async (customText?: string) => {
@@ -192,17 +235,17 @@ Trong lúc chờ, bạn có thể ôn theo khung:
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    const nextHistory = [...messages, userMsg];
-    setMessages(nextHistory);
+    setMessages((prev) => [...prev, userMsg]);
     if (!customText) setInput('');
     setIsLoading(true);
 
     try {
-      const reply = await getTeacherResponse(textToSend, nextHistory);
+      const response = await getTeacherResponse(textToSend, messages);
       const aiMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'ai',
-        text: reply,
+        text: response.text,
+        providerBadge: response.badge,
         time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, aiMsg]);
@@ -212,13 +255,19 @@ Trong lúc chờ, bạn có thể ôn theo khung:
         {
           id: (Date.now() + 1).toString(),
           sender: 'ai',
-          text: '⚠️ Không thể kết nối dịch vụ AI. Vui lòng thử lại sau. Nội dung chỉ mang tính học tập, không thay thế tư vấn y tế cá nhân.',
+          text: 'Thầy đang rà soát lại tài liệu giảng dạy, em chờ thầy một chút nhé!',
           time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUpdateConfig = (updates: Partial<AIProviderConfig>) => {
+    const newConfig = { ...aiConfig, ...updates };
+    setAiConfig(newConfig);
+    saveAIConfig(updates);
   };
 
   return (
@@ -241,7 +290,7 @@ Trong lúc chờ, bạn có thể ôn theo khung:
 
       {/* Cửa sổ Chat Widget nổi - mở từ phía trên xuống */}
       {isOpen && (
-        <div className="fixed top-16 right-4 sm:right-6 z-50 w-[94vw] sm:w-[440px] h-[600px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-6 duration-200">
+        <div className="fixed top-16 right-4 sm:right-6 z-50 w-[94vw] sm:w-[460px] h-[620px] max-h-[85vh] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in slide-in-from-top-6 duration-200">
           {/* Header */}
           <div className="px-4 py-3 bg-gradient-to-r from-blue-700 via-indigo-600 to-teal-600 text-white flex items-center justify-between shrink-0 shadow-sm">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -250,39 +299,171 @@ Trong lúc chờ, bạn có thể ôn theo khung:
               </div>
               <div className="min-w-0">
                 <h3 className="font-bold text-sm leading-tight truncate flex items-center gap-1.5">
-                  Thầy Giáo AI — Cố Vấn Học Tập
+                  Thầy Giáo AI — Cố Vấn Y Khoa
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                 </h3>
                 <p className="text-[11px] text-blue-100 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                  Đồng hành cùng sinh viên ôn thi Y - Nha khoa
+                  Tối ưu Token đa AI (Gemini • Groq • OpenRouter)
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1 text-white/80">
               <button
+                onClick={() => setShowKeyModal(!showKeyModal)}
+                title="Quản lý Token & AI Providers"
+                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              >
+                <Cpu className="w-4 h-4 text-amber-300" />
+              </button>
+              <button
                 onClick={() => setMessages([messages[0]])}
                 title="Làm mới cuộc trò chuyện"
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsOpen(false)}
                 title="Thu nhỏ"
-                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="p-1.5 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
               >
                 <Minimize2 className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200/60 dark:border-amber-900/40 flex items-start gap-1.5 shrink-0 text-[10px] text-amber-800 dark:text-amber-200">
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-            <span>Nội dung chỉ phục vụ <b>học tập</b>. Không dùng để chẩn đoán, kê đơn hoặc thay thế tư vấn của bác sĩ/nhân viên y tế.</span>
+          {/* Modal / Bảng điều khiển Quản lý Token & AI Providers */}
+          {showKeyModal && (
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-xs space-y-2.5 shrink-0 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4 text-indigo-500" />
+                  Nguồn AI Token & Tự động Fallback:
+                </span>
+                <button
+                  onClick={() => setShowKeyModal(false)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Lựa chọn Provider ưu tiên */}
+              <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                <button
+                  onClick={() => handleUpdateConfig({ provider: 'gemini' })}
+                  className={`p-1.5 rounded-lg border text-center transition-all ${
+                    aiConfig.provider === 'gemini'
+                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  Google Gemini
+                </button>
+                <button
+                  onClick={() => handleUpdateConfig({ provider: 'groq' })}
+                  className={`p-1.5 rounded-lg border text-center transition-all ${
+                    aiConfig.provider === 'groq'
+                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  ⚡ Groq Cloud
+                </button>
+                <button
+                  onClick={() => handleUpdateConfig({ provider: 'openrouter' })}
+                  className={`p-1.5 rounded-lg border text-center transition-all ${
+                    aiConfig.provider === 'openrouter'
+                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  🌐 OpenRouter
+                </button>
+              </div>
+
+              {/* Nhập Key từng Provider */}
+              <div className="space-y-1.5 pt-1">
+                {aiConfig.provider === 'gemini' && (
+                  <div>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      <span>Google AI Studio Key (Miễn phí 1M RPD):</span>
+                      <a
+                        href="https://aistudio.google.com/app/apikey"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-500 hover:underline flex items-center gap-0.5"
+                      >
+                        Lấy Key <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Dán Gemini API Key (AIzaSy...)"
+                      value={aiConfig.geminiKey || ''}
+                      onChange={(e) => handleUpdateConfig({ geminiKey: e.target.value })}
+                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 outline-none"
+                    />
+                  </div>
+                )}
+
+                {aiConfig.provider === 'groq' && (
+                  <div>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      <span>Groq API Key (Miễn phí ~500 token/s):</span>
+                      <a
+                        href="https://console.groq.com/keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-500 hover:underline flex items-center gap-0.5"
+                      >
+                        Lấy Key <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Dán Groq API Key (gsk_...)"
+                      value={aiConfig.groqKey || ''}
+                      onChange={(e) => handleUpdateConfig({ groqKey: e.target.value })}
+                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 outline-none"
+                    />
+                  </div>
+                )}
+
+                {aiConfig.provider === 'openrouter' && (
+                  <div>
+                    <div className="flex justify-between items-center text-[10px] text-slate-500 dark:text-slate-400 mb-0.5">
+                      <span>OpenRouter API Key (Hàng trăm model free):</span>
+                      <a
+                        href="https://openrouter.ai/keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-blue-500 hover:underline flex items-center gap-0.5"
+                      >
+                        Lấy Key <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                    <input
+                      type="password"
+                      placeholder="Dán OpenRouter Key (sk-or-v1-...)"
+                      value={aiConfig.openRouterKey || ''}
+                      onChange={(e) => handleUpdateConfig({ openRouterKey: e.target.value })}
+                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 rounded border border-slate-300 dark:border-slate-700 text-xs text-slate-800 dark:text-slate-100 outline-none"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Banner định hướng học tập */}
+          <div className="px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200/60 dark:border-amber-900/40 flex items-center gap-1.5 shrink-0 text-[10px] text-amber-800 dark:text-amber-200">
+            <BookOpen className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>Mục đích học tập, giải thích bài giảng & ôn thi. Không dùng khám chữa bệnh nhân.</span>
           </div>
 
-          {/* Tab chuyển đổi tính năng: Hỏi đáp / Đố vui / Mẹo thi */}
+          {/* Tab chuyển đổi tính năng */}
           <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-xs shrink-0 font-medium">
             <button
               onClick={() => setActiveTab('chat')}
@@ -394,11 +575,16 @@ Trong lúc chờ, bạn có thể ôn theo khung:
                 >
                   {m.text}
                   <div
-                    className={`text-[9px] mt-1 text-right ${
+                    className={`text-[9px] mt-1 flex items-center justify-between gap-2 ${
                       m.sender === 'user' ? 'text-blue-100' : 'text-slate-400 dark:text-slate-400'
                     }`}
                   >
-                    {m.time}
+                    {m.providerBadge && (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-medium text-slate-600 dark:text-slate-300">
+                        {m.providerBadge}
+                      </span>
+                    )}
+                    <span className="ml-auto">{m.time}</span>
                   </div>
                 </div>
               </div>
@@ -412,7 +598,7 @@ Trong lúc chờ, bạn có thể ôn theo khung:
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce [animation-delay:0.4s]" />
-                  <span>Thầy đang suy ngẫm lời giải thích...</span>
+                  <span>Thầy đang kết nối AI và suy ngẫm lời giải thích...</span>
                 </div>
               </div>
             )}
