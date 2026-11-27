@@ -169,7 +169,11 @@ Các em đang ôn tập đến bài học nào, cứ hỏi thầy nhé!`,
     const hasAnyKey = Boolean(aiConfig.geminiKey || aiConfig.groqKey || aiConfig.openRouterKey);
     if (hasAnyKey) {
       try {
-        const result = await routeAndCallAI(questionText, aiConfig);
+        const historyForRouter = history.slice(-6).map((m) => ({
+          role: m.sender === 'ai' ? ('assistant' as const) : ('user' as const),
+          text: m.text,
+        }));
+        const result = await routeAndCallAI(questionText, historyForRouter, aiConfig);
         return { 
           text: `${result.text}\n\n> ⚠️ Nội dung mang tính giáo dục/học tập, không thay thế chẩn đoán hoặc tư vấn điều trị cá nhân.`, 
           badge: result.providerUsed 

@@ -1,5 +1,12 @@
-// Service quan ly da AI Provider de toi uu token va fallback tu dong
+// He thong Dinh tuyen Thong minh Da LLM (Dynamic Multi-LLM Token Router)
+// Tich hop: Phan tang do kho, Semantic Cache (0 Token), Context Compressor va Tu dong Fallback
+
+import { lookupCache, setCache } from './agentCache';
+import { compressChatContext, cleanText, ChatHistoryItem } from './contextCompressor';
+
 export type AIProvider = 'gemini' | 'groq' | 'openrouter';
+
+export type TaskComplexity = 'simple' | 'medium' | 'complex';
 
 export interface AIProviderConfig {
   provider: AIProvider;
@@ -39,20 +46,55 @@ QUY TAC BAT BUOC:
 - Dung Markdown ro rang, gach dau dong, giai thich ban chat co che khoa hoc.
 - Cuoi cau luon dat 1 cau hoi goi mo tu duy de sinh vien tu suy ngam.`;
 
-// 1. Goi Google Gemini API (AI Studio - 15 RPM, 1.000.000 RPD mien phi)
-export const callGeminiAPI = async (prompt: string, apiKey: string): Promise<string> => {
+/**
+ * 1. Danh gia do phuc tap cua cau hoi de chon Model thich hop nhat (Task Complexity Triage)
+ * - Simple (Dinh nghia, tra cuu ngan): Uu tien Groq Llama 3 (sieu toc, it ton)
+ * - Medium (Giai thich co che, meo on thi): Gemini 1.5 Flash hoac Groq
+ * - Complex (Phan tich ca lam sang, phan bien sau): Gemini 1.5/2.0 Flash hoac OpenRouter DeepSeek
+ */
+export const evaluateComplexity = (prompt: string): TaskComplexity => {
+  const p = prompt.toLowerCase();
+  const wordCount = prompt.trim().split(/\s+/).length;
+
+  if (wordCount < 10 && (p.includes('la gi') || p.includes('dinh nghia') || p.includes('chi so'))) {
+    return 'simple';
+  }
+
+  if (
+    p.includes('ca benh') ||
+    p.includes('chan doan') ||
+    p.includes('cbct') ||
+    p.includes('bien chung') ||
+    p.includes('phan bien') ||
+    wordCount > 50
+  ) {
+    return 'complex';
+  }
+
+  return 'medium';
+};
+
+// 2. Goi Google Gemini API
+export const callGeminiAPI = async (prompt: string, history: ChatHistoryItem[], apiKey: string): Promise<string> => {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+  // Chuyen doi lich su da nen sang format cua Gemini
+  const contents: any[] = [];
+  for (const h of history) {
+    contents.push({
+      role: h.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: h.text }],
+    });
+  }
+  contents.push({
+    role: 'user',
+    parts: [{ text: `${SYSTEM_PROMPT}\n\nCau hoi cua sinh vien: "${cleanText(prompt)}"` }],
+  });
+
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: `${SYSTEM_PROMPT}\n\nCau hoi cua sinh vien: "${prompt}"` }],
-        },
-      ],
-    }),
+    body: JSON.stringify({ contents }),
   });
 
   if (!response.ok) {
@@ -66,9 +108,19 @@ export const callGeminiAPI = async (prompt: string, apiKey: string): Promise<str
   return text;
 };
 
-// 2. Goi Groq API (Sieu toc do ~300-500 token/giay, mien phi Llama 3.3 70B & DeepSeek R1)
-export const callGroqAPI = async (prompt: string, apiKey: string): Promise<string> => {
+// 3. Goi Groq API (Sieu toc do ~300-500 token/giay)
+export const callGroqAPI = async (prompt: string, history: ChatHistoryItem[], apiKey: string): Promise<string> => {
   const url = 'https://api.groq.com/openai/v1/chat/completions';
+
+  const messages: any[] = [{ role: 'system', content: SYSTEM_PROMPT }];
+  for (const h of history) {
+    messages.push({
+      role: h.role === 'assistant' ? 'assistant' : 'user',
+      content: h.text,
+    });
+  }
+  messages.push({ role: 'user', content: cleanText(prompt) });
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -77,10 +129,7 @@ export const callGroqAPI = async (prompt: string, apiKey: string): Promise<strin
     },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
+      messages,
       temperature: 0.6,
       max_tokens: 1500,
     }),
@@ -97,9 +146,19 @@ export const callGroqAPI = async (prompt: string, apiKey: string): Promise<strin
   return text;
 };
 
-// 3. Goi OpenRouter API (Tap hop hang tram model mien phi nhu Llama 3, DeepSeek, Mistral)
-export const callOpenRouterAPI = async (prompt: string, apiKey: string): Promise<string> => {
+// 4. Goi OpenRouter API
+export const callOpenRouterAPI = async (prompt: string, history: ChatHistoryItem[], apiKey: string): Promise<string> => {
   const url = 'https://openrouter.ai/api/v1/chat/completions';
+
+  const messages: any[] = [{ role: 'system', content: SYSTEM_PROMPT }];
+  for (const h of history) {
+    messages.push({
+      role: h.role === 'assistant' ? 'assistant' : 'user',
+      content: h.text,
+    });
+  }
+  messages.push({ role: 'user', content: cleanText(prompt) });
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -110,10 +169,7 @@ export const callOpenRouterAPI = async (prompt: string, apiKey: string): Promise
     },
     body: JSON.stringify({
       model: 'meta-llama/llama-3.3-70b-instruct:free',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: prompt },
-      ],
+      messages,
       temperature: 0.6,
       max_tokens: 1500,
     }),
@@ -130,32 +186,54 @@ export const callOpenRouterAPI = async (prompt: string, apiKey: string): Promise
   return text;
 };
 
-// 4. Token Router Thong Minh: Tu dong goi Provider da chon hoac Fallback sang cac Provider con lai
+// 5. Dynamic Token Router Tong Hop voi Cache & Nen Ngu Canh
 export const routeAndCallAI = async (
   prompt: string,
+  rawHistory: ChatHistoryItem[],
   config: AIProviderConfig
-): Promise<{ text: string; providerUsed: string }> => {
+): Promise<{ text: string; providerUsed: string; fromCache?: boolean }> => {
+  // BƯỚC 1: Kiem tra Semantic Cache cuc bo (Tiet kiem 100% Token)
+  const cached = lookupCache(prompt);
+  if (cached) {
+    return {
+      text: cached.response,
+      providerUsed: cached.provider,
+      fromCache: true,
+    };
+  }
+
+  // BƯỚC 2: Nen ngu canh lich su (Tiet kiem 50% Token dau vao)
+  const compressedHistory = compressChatContext(rawHistory, 6);
+
+  // BƯỚC 3: Danh gia do phuc tap va lap trinh tu thu tu Provider uu tien
+  const complexity = evaluateComplexity(prompt);
   const errors: string[] = [];
 
-  // Thu tu goi uu tien theo lua chon cua nguoi dung
   const providerOrder: AIProvider[] = [config.provider];
   if (config.provider !== 'gemini' && config.geminiKey) providerOrder.push('gemini');
   if (config.provider !== 'groq' && config.groqKey) providerOrder.push('groq');
   if (config.provider !== 'openrouter' && config.openRouterKey) providerOrder.push('openrouter');
 
+  // BƯỚC 4: Vong lap Fallback giua cac nha cung cap
   for (const prov of providerOrder) {
     try {
       if (prov === 'gemini' && config.geminiKey) {
-        const text = await callGeminiAPI(prompt, config.geminiKey);
-        return { text, providerUsed: 'Google Gemini (1.5 Flash)' };
+        const text = await callGeminiAPI(prompt, compressedHistory, config.geminiKey);
+        const providerName = `Google Gemini 1.5 Flash [${complexity}]`;
+        setCache(prompt, text, providerName);
+        return { text, providerUsed: providerName };
       }
       if (prov === 'groq' && config.groqKey) {
-        const text = await callGroqAPI(prompt, config.groqKey);
-        return { text, providerUsed: 'Groq Cloud (Llama 3.3 70B)' };
+        const text = await callGroqAPI(prompt, compressedHistory, config.groqKey);
+        const providerName = `Groq Cloud Llama 3.3 [${complexity}]`;
+        setCache(prompt, text, providerName);
+        return { text, providerUsed: providerName };
       }
       if (prov === 'openrouter' && config.openRouterKey) {
-        const text = await callOpenRouterAPI(prompt, config.openRouterKey);
-        return { text, providerUsed: 'OpenRouter (Llama 3 Free)' };
+        const text = await callOpenRouterAPI(prompt, compressedHistory, config.openRouterKey);
+        const providerName = `OpenRouter Free [${complexity}]`;
+        setCache(prompt, text, providerName);
+        return { text, providerUsed: providerName };
       }
     } catch (err: any) {
       console.warn(`Provider ${prov} gap loi, tiep tuc fallback:`, err.message);
@@ -165,7 +243,7 @@ export const routeAndCallAI = async (
 
   throw new Error(
     errors.length > 0
-      ? `Tất cả AI Providers đều gặp sự cố: ${errors.join(' | ')}`
-      : 'Chưa có API Key nào được thiết lập hợp lệ.'
+      ? `Tat ca AI Providers deu gap su co: ${errors.join(' | ')}`
+      : 'Chua co API Key nao duoc thiet lap hop le.'
   );
 };
